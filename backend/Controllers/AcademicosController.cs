@@ -12,9 +12,9 @@ public class AcademicosController : ControllerBase
         new Academico
         {
             Id = 1,
+            Matricula = "20240001",
             Nome = "Maria",
             Email = "maria@email.com",
-            Curso = "Sistemas de Informação",
             Ativo = true
         }
     };
@@ -23,5 +23,14 @@ public class AcademicosController : ControllerBase
     public IActionResult Get()
     {
         return Ok(academicos);
+    }
+
+    [HttpPost]
+    public IActionResult Post(Academico academico)
+    {
+        academico.Id = academicos.Count + 1;
+        academicos.Add(academico);
+
+        return Created("", academico);
     }
 }
