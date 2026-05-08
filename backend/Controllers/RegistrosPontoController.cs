@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using backend.Data;
 using backend.Models;
 
 namespace backend.Controllers;
@@ -7,31 +9,68 @@ namespace backend.Controllers;
 [Route("registros-ponto")]
 public class RegistrosPontoController : ControllerBase
 {
-    private static List<RegistroPonto> registros = new List<RegistroPonto>();
+    private readonly AppDbContext _context;
 
+    public RegistrosPontoController(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    [HttpGet]
+    public IActionResult Get()
+    {
+        var registros = _context.RegistrosPonto
+            .Include(r => r.Academico)
+            .ToList();
+
+        return Ok(registros);
+    }
+
+    // Endpoint responsável por registrar a entrada do acadêmico
     [HttpPost("entrada/{academicoId}")]
     public IActionResult RegistrarEntrada(int academicoId)
     {
+        var academicoExiste = _context.Academicos.Any(a => a.Id == academicoId);
+
+        if (!academicoExiste)
+        {
+            return NotFound("Acadêmico não encontrado.");
+        }
+
+        var entradaAberta = _context.RegistrosPonto.Any(r =>
+            r.AcademicoId == academicoId &&
+            r.HoraSaida == null
+        );
+
+        if (entradaAberta)
+        {
+            return BadRequest("Já existe uma entrada aberta para este acadêmico.");
+        }
+
         var registro = new RegistroPonto
         {
-            Id = registros.Count + 1,
             AcademicoId = academicoId,
             Data = DateTime.Today,
             HoraEntrada = DateTime.Now
         };
 
-        registros.Add(registro);
+        _context.RegistrosPonto.Add(registro);
+        _context.SaveChanges();
 
         return Ok(registro);
     }
 
+    // Endpoint responsável por registrar a saída e calcular horas trabalhadas
     [HttpPost("saida/{academicoId}")]
     public IActionResult RegistrarSaida(int academicoId)
     {
-        var registro = registros.LastOrDefault(r =>
-            r.AcademicoId == academicoId &&
-            r.Data == DateTime.Today &&
-            r.HoraSaida == null);
+        var registro = _context.RegistrosPonto
+            .Where(r =>
+                r.AcademicoId == academicoId &&
+                r.HoraSaida == null
+            )
+            .OrderByDescending(r => r.HoraEntrada)
+            .FirstOrDefault();
 
         if (registro == null)
         {
@@ -39,13 +78,13 @@ public class RegistrosPontoController : ControllerBase
         }
 
         registro.HoraSaida = DateTime.Now;
+        var total = registro.HoraSaida.Value - registro.HoraEntrada.Value;
+
+registro.TotalTrabalhado = total.ToString(@"hh\:mm\:ss");
+
+
+        _context.SaveChanges();
 
         return Ok(registro);
-    }
-
-    [HttpGet]
-    public IActionResult Get()
-    {
-        return Ok(registros);
     }
 }
