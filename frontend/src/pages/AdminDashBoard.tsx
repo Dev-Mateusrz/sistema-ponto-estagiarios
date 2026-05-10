@@ -79,6 +79,27 @@ function AdminDashboard() {
     }
   }
 
+  async function excluirAcademico(id: number) {
+  const confirmar = confirm(
+    "Tem certeza que deseja excluir este usuário?"
+  );
+
+  if (!confirmar) return;
+
+  const resposta = await fetch(
+    `http://localhost:5294/academicos/${id}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (resposta.ok) {
+    carregarAcademicos();
+  } else {
+    alert("Erro ao excluir usuário.");
+  }
+}
+
   return (
     <div className="min-h-screen bg-gray-100 p-10">
       <div className="mx-auto max-w-5xl rounded-2xl bg-white p-8 shadow">
@@ -180,19 +201,35 @@ function AdminDashboard() {
             Usuários cadastrados
           </h2>
 
-          {academicos.map((academico) => (
-            <div key={academico.id} className="rounded-xl border p-4">
-              <p>Matrícula: {academico.matricula}</p>
+          
+{academicos.map((academico) => (
+  <div
+    key={academico.id}
+    className="rounded-xl border p-4 shadow-sm"
+  >
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p>Matrícula: {academico.matricula}</p>
 
-              <h2 className="text-xl font-bold">{academico.nome}</h2>
+        <h2 className="text-xl font-bold">{academico.nome}</h2>
 
-              <p>{academico.email}</p>
+        <p>{academico.email}</p>
 
-              <p>
-                Perfil: {academico.ehAdmin ? "Administrador" : "Aluno"}
-              </p>
-            </div>
-          ))}
+        <p>
+          Perfil: {academico.ehAdmin ? "Administrador" : "Aluno"}
+        </p>
+      </div>
+
+      <button
+        onClick={() => excluirAcademico(academico.id)}
+        className="rounded-lg bg-red-500 px-4 py-2 text-sm text-white transition hover:bg-red-600"
+      >
+        Excluir
+      </button>
+    </div>
+  </div>
+))}
+
         </div>
       </div>
     </div>
