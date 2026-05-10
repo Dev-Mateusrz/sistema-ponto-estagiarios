@@ -25,6 +25,8 @@ function Login() {
     if (resposta.ok) {
       const usuario = await resposta.json();
 
+localStorage.setItem("usuario", JSON.stringify(usuario));
+
       if (usuario.ehAdmin) {
         navigate("/admin");
       } else {

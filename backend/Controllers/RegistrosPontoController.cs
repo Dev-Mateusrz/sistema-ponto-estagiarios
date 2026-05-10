@@ -26,7 +26,6 @@ public class RegistrosPontoController : ControllerBase
         return Ok(registros);
     }
 
-    // Endpoint responsável por registrar a entrada do acadêmico
     [HttpPost("entrada/{academicoId}")]
     public IActionResult RegistrarEntrada(int academicoId)
     {
@@ -60,7 +59,6 @@ public class RegistrosPontoController : ControllerBase
         return Ok(registro);
     }
 
-    // Endpoint responsável por registrar a saída e calcular horas trabalhadas
     [HttpPost("saida/{academicoId}")]
     public IActionResult RegistrarSaida(int academicoId)
     {
@@ -78,10 +76,9 @@ public class RegistrosPontoController : ControllerBase
         }
 
         registro.HoraSaida = DateTime.Now;
-        var total = registro.HoraSaida.Value - registro.HoraEntrada.Value;
 
-registro.TotalTrabalhado = total.ToString(@"hh\:mm\:ss");
-
+        registro.TotalTrabalhado =
+            registro.HoraSaida.Value - registro.HoraEntrada.Value;
 
         _context.SaveChanges();
 

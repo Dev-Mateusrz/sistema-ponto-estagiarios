@@ -1,19 +1,30 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace backend.Migrations
 {
     /// <inheritdoc />
-    public partial class AjustaTotalTrabalhado : Migration
+    public partial class AdicionaTotalTrabalhado : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
+            migrationBuilder.AlterColumn<DateTime>(
+                name: "HoraEntrada",
+                table: "RegistrosPonto",
+                type: "datetime2",
+                nullable: false,
+                defaultValue: new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                oldClrType: typeof(DateTime),
+                oldType: "datetime2",
+                oldNullable: true);
+
+            migrationBuilder.AddColumn<TimeSpan>(
                 name: "TotalTrabalhado",
                 table: "RegistrosPonto",
-                type: "nvarchar(max)",
+                type: "time",
                 nullable: true);
 
             migrationBuilder.CreateIndex(
@@ -44,6 +55,14 @@ namespace backend.Migrations
             migrationBuilder.DropColumn(
                 name: "TotalTrabalhado",
                 table: "RegistrosPonto");
+
+            migrationBuilder.AlterColumn<DateTime>(
+                name: "HoraEntrada",
+                table: "RegistrosPonto",
+                type: "datetime2",
+                nullable: true,
+                oldClrType: typeof(DateTime),
+                oldType: "datetime2");
         }
     }
 }

@@ -12,8 +12,8 @@ using backend.Data;
 namespace backend.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260508134204_AjustaTotalTrabalhado")]
-    partial class AjustaTotalTrabalhado
+    [Migration("20260508024429_AdicionaTotalTrabalhado")]
+    partial class AdicionaTotalTrabalhado
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -67,14 +67,14 @@ namespace backend.Migrations
                     b.Property<DateTime>("Data")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime?>("HoraEntrada")
+                    b.Property<DateTime>("HoraEntrada")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("HoraSaida")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("TotalTrabalhado")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<TimeSpan?>("TotalTrabalhado")
+                        .HasColumnType("time");
 
                     b.HasKey("Id");
 

@@ -9,8 +9,22 @@ type Academico = {
   ehAdmin: boolean;
 };
 
+type RegistroPonto = {
+  id: number;
+  data: string;
+  horaEntrada: string;
+  horaSaida: string | null;
+  totalTrabalhado: string | null;
+  academico?: {
+    matricula: string;
+    nome: string;
+    email: string;
+  };
+};
+
 function AdminDashboard() {
   const [academicos, setAcademicos] = useState<Academico[]>([]);
+  const [registros, setRegistros] = useState<RegistroPonto[]>([]);
 
   const [matricula, setMatricula] = useState("");
   const [nome, setNome] = useState("");
@@ -24,27 +38,31 @@ function AdminDashboard() {
       .then((dados) => setAcademicos(dados));
   }
 
+  function carregarRegistros() {
+    fetch("http://localhost:5294/registros-ponto")
+      .then((res) => res.json())
+      .then((dados) => setRegistros(dados));
+  }
+
   useEffect(() => {
     carregarAcademicos();
+    carregarRegistros();
   }, []);
 
   async function cadastrarAcademico() {
-    const resposta = await fetch(
-      "http://localhost:5294/academicos",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          matricula,
-          nome,
-          email,
-          senha,
-          ehAdmin,
-        }),
-      }
-    );
+    const resposta = await fetch("http://localhost:5294/academicos", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        matricula,
+        nome,
+        email,
+        senha,
+        ehAdmin,
+      }),
+    });
 
     if (resposta.ok) {
       alert("Usuário cadastrado!");
@@ -107,7 +125,6 @@ function AdminDashboard() {
               checked={ehAdmin}
               onChange={(e) => setEhAdmin(e.target.checked)}
             />
-
             Usuário administrador
           </label>
 
@@ -119,25 +136,60 @@ function AdminDashboard() {
           </button>
         </div>
 
+        <div className="mt-10">
+          <h2 className="text-2xl font-bold text-gray-800">
+            Registros de Ponto
+          </h2>
+
+          <div className="mt-4 space-y-4">
+            {registros.map((registro) => (
+              <div key={registro.id} className="rounded-xl border p-4">
+                <p>
+                  <strong>Matrícula:</strong>{" "}
+                  {registro.academico?.matricula ?? "Não informada"}
+                </p>
+
+                <p>
+                  <strong>Nome:</strong>{" "}
+                  {registro.academico?.nome ?? "Não informado"}
+                </p>
+
+                <p>
+                  <strong>Entrada:</strong>{" "}
+                  {new Date(registro.horaEntrada).toLocaleString()}
+                </p>
+
+                <p>
+                  <strong>Saída:</strong>{" "}
+                  {registro.horaSaida
+                    ? new Date(registro.horaSaida).toLocaleString()
+                    : "Ainda não registrada"}
+                </p>
+
+                <p>
+                  <strong>Total trabalhado:</strong>{" "}
+                  {registro.totalTrabalhado ?? "Em andamento"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="mt-10 space-y-4">
+          <h2 className="text-2xl font-bold text-gray-800">
+            Usuários cadastrados
+          </h2>
+
           {academicos.map((academico) => (
-            <div
-              key={academico.id}
-              className="rounded-xl border p-4"
-            >
+            <div key={academico.id} className="rounded-xl border p-4">
               <p>Matrícula: {academico.matricula}</p>
 
-              <h2 className="text-xl font-bold">
-                {academico.nome}
-              </h2>
+              <h2 className="text-xl font-bold">{academico.nome}</h2>
 
               <p>{academico.email}</p>
 
               <p>
-                Perfil:{" "}
-                {academico.ehAdmin
-                  ? "Administrador"
-                  : "Aluno"}
+                Perfil: {academico.ehAdmin ? "Administrador" : "Aluno"}
               </p>
             </div>
           ))}
