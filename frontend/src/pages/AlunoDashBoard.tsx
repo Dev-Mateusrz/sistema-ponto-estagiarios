@@ -7,22 +7,49 @@ type Usuario = {
   matricula: string;
 };
 
+type RegistroPonto = {
+  id: number;
+  data: string;
+  horaEntrada: string;
+  horaSaida: string | null;
+  totalTrabalhado: string | null;
+};
+
 function AlunoDashboard() {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [registros, setRegistros] = useState<RegistroPonto[]>([]);
+  const [horaAtual, setHoraAtual] = useState(new Date());
 
   useEffect(() => {
     const usuarioSalvo = localStorage.getItem("usuario");
 
     if (usuarioSalvo) {
-      setUsuario(JSON.parse(usuarioSalvo));
+      const usuarioConvertido = JSON.parse(usuarioSalvo);
+      setUsuario(usuarioConvertido);
+      carregarRegistros(usuarioConvertido.id);
     }
+
+    const timer = setInterval(() => {
+      setHoraAtual(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
   }, []);
 
+  function carregarRegistros(academicoId: number) {
+    fetch("http://localhost:5294/registros-ponto")
+      .then((res) => res.json())
+      .then((dados) => {
+        const registrosDoUsuario = dados.filter(
+          (registro: any) => registro.academicoId === academicoId
+        );
+
+        setRegistros(registrosDoUsuario);
+      });
+  }
+
   async function registrarEntrada() {
-    if (!usuario) {
-      alert("Usuário não encontrado. Faça login novamente.");
-      return;
-    }
+    if (!usuario) return;
 
     const resposta = await fetch(
       `http://localhost:5294/registros-ponto/entrada/${usuario.id}`,
@@ -31,16 +58,14 @@ function AlunoDashboard() {
 
     if (resposta.ok) {
       alert("Entrada registrada!");
+      carregarRegistros(usuario.id);
     } else {
       alert("Erro ao registrar entrada.");
     }
   }
 
   async function registrarSaida() {
-    if (!usuario) {
-      alert("Usuário não encontrado. Faça login novamente.");
-      return;
-    }
+    if (!usuario) return;
 
     const resposta = await fetch(
       `http://localhost:5294/registros-ponto/saida/${usuario.id}`,
@@ -49,44 +74,205 @@ function AlunoDashboard() {
 
     if (resposta.ok) {
       alert("Saída registrada!");
+      carregarRegistros(usuario.id);
     } else {
       alert("Erro ao registrar saída.");
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gray-100 p-10">
-      <div className="mx-auto max-w-5xl rounded-2xl bg-white p-8 shadow">
-        <h1 className="text-3xl font-bold text-blue-600">
-          Dashboard do Aluno
-        </h1>
+  function formatarHora(data: string | null) {
+    if (!data) return "--:--";
 
-        <p className="mt-2 text-gray-600">
-          Bem-vindo(a), {usuario?.nome}
+    return new Date(data).toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }
+
+  function formatarTotal(total: string | null) {
+    if (!total) return "Em andamento";
+
+    return total.split(".")[0];
+  }
+
+  const registrosHoje = registros.filter((registro) => {
+    const dataRegistro = new Date(registro.data).toDateString();
+    const hoje = new Date().toDateString();
+
+    return dataRegistro === hoje;
+  });
+
+  const entradaAberta = registros.some(
+    (registro) => registro.horaSaida === null
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <header className="bg-gradient-to-r from-blue-900 via-blue-700 to-sky-500 text-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20">
+              🕒
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest">
+                Prefeitura do Rio · Subsecretaria de Gestão
+              </p>
+
+              <h1 className="text-xl font-bold">
+                Ponto <span className="text-orange-400">Digital</span>
+              </h1>
+            </div>
+          </div>
+
+          <p className="text-xl font-bold">
+            {horaAtual.toLocaleTimeString("pt-BR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </p>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-8 py-10">
+        <p className="text-lg text-slate-500">
+          {horaAtual.toLocaleDateString("pt-BR", {
+            weekday: "long",
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+          })}
         </p>
 
-        <div className="mt-8 rounded-xl border p-6">
-          <h2 className="text-xl font-semibold">
-            Registro de Ponto
-          </h2>
+        <h1 className="mt-2 text-4xl font-extrabold text-blue-900">
+          Dashboard do Estagiário
+        </h1>
 
-          <div className="mt-4 flex gap-4">
-            <button
-              onClick={registrarEntrada}
-              className="rounded-lg bg-green-600 px-4 py-2 text-white"
-            >
-              Registrar Entrada
-            </button>
+        <p className="mt-3 text-xl text-slate-500">
+          Bem-vindo(a),{" "}
+          <strong className="text-slate-900">{usuario?.nome}</strong>.
+          Pronto para registrar seu ponto?
+        </p>
 
-            <button
-              onClick={registrarSaida}
-              className="rounded-lg bg-red-600 px-4 py-2 text-white"
-            >
-              Registrar Saída
-            </button>
+        <section className="mt-8 rounded-3xl bg-white p-8 shadow-sm">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-6">
+              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-blue-100 text-4xl text-blue-700">
+                🕒
+              </div>
+
+              <div>
+                <p className="text-sm font-bold uppercase text-slate-500">
+                  Hora atual
+                </p>
+
+                <p className="text-5xl font-extrabold text-slate-950">
+                  {horaAtual.toLocaleTimeString("pt-BR")}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4 sm:flex-row">
+              <button
+                onClick={registrarEntrada}
+                className="rounded-2xl bg-green-600 px-8 py-4 text-lg font-bold text-white shadow-lg transition hover:bg-green-700"
+              >
+                 Registrar Entrada
+              </button>
+
+              <button
+                onClick={registrarSaida}
+                className="rounded-2xl bg-red-600 px-8 py-4 text-lg font-bold text-white shadow-lg transition hover:bg-red-700"
+              >
+                 Registrar Saída
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
+        </section>
+
+        <section className="mt-8 grid gap-6 lg:grid-cols-3">
+          <div className="rounded-3xl bg-white p-6 shadow-sm">
+            <p className="text-lg text-slate-500">📅 Registros hoje</p>
+            <h2 className="mt-4 text-3xl font-extrabold">
+              {registrosHoje.length}
+            </h2>
+          </div>
+
+          <div className="rounded-3xl bg-white p-6 shadow-sm">
+            <p className="text-lg text-slate-500">📈 Total no mês</p>
+            <h2 className="mt-4 text-3xl font-extrabold">
+              {registros.length}
+            </h2>
+          </div>
+
+          <div className="rounded-3xl bg-white p-6 shadow-sm">
+            <p className="text-lg text-slate-500">⏺ Status</p>
+            <h2
+              className={`mt-4 text-3xl font-extrabold ${
+                entradaAberta ? "text-green-600" : "text-red-600"
+              }`}
+            >
+              {entradaAberta ? "Em expediente" : "Fora"}
+            </h2>
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-3xl bg-white p-8 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-slate-900">
+              Histórico recente
+            </h2>
+
+            <p className="text-slate-500">
+              {registros.length} registro(s)
+            </p>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {registros.length === 0 && (
+              <div className="rounded-3xl border border-dashed border-slate-300 p-12 text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-3xl">
+                  🕒
+                </div>
+
+                <h3 className="mt-5 text-xl font-bold">
+                  Nenhum registro ainda
+                </h3>
+
+                <p className="mt-2 text-slate-500">
+                  Use os botões acima para registrar seu primeiro ponto.
+                </p>
+              </div>
+            )}
+
+            {registros.map((registro) => (
+              <div
+                key={registro.id}
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+              >
+                <p>
+                  <strong>Entrada:</strong>{" "}
+                  {formatarHora(registro.horaEntrada)}
+                </p>
+
+                <p>
+                  <strong>Saída:</strong>{" "}
+                  {registro.horaSaida
+                    ? formatarHora(registro.horaSaida)
+                    : "Ainda não registrada"}
+                </p>
+
+                <p>
+                  <strong>Total trabalhado:</strong>{" "}
+                  {formatarTotal(registro.totalTrabalhado)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
