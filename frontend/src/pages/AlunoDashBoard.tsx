@@ -194,21 +194,21 @@ function AlunoDashboard() {
 
         <section className="mt-8 grid gap-6 lg:grid-cols-3">
           <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <p className="text-lg text-slate-500">📅 Registros hoje</p>
+            <p className="text-lg text-slate-500"> Registros hoje</p>
             <h2 className="mt-4 text-3xl font-extrabold">
               {registrosHoje.length}
             </h2>
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <p className="text-lg text-slate-500">📈 Total no mês</p>
+            <p className="text-lg text-slate-500"> Total no mês</p>
             <h2 className="mt-4 text-3xl font-extrabold">
               {registros.length}
             </h2>
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <p className="text-lg text-slate-500">⏺ Status</p>
+            <p className="text-lg text-slate-500"> Status</p>
             <h2
               className={`mt-4 text-3xl font-extrabold ${
                 entradaAberta ? "text-green-600" : "text-red-600"
@@ -234,7 +234,7 @@ function AlunoDashboard() {
             {registros.length === 0 && (
               <div className="rounded-3xl border border-dashed border-slate-300 p-12 text-center">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-3xl">
-                  🕒
+            
                 </div>
 
                 <h3 className="mt-5 text-xl font-bold">
