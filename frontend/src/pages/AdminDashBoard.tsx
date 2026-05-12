@@ -453,7 +453,7 @@ Administrador
             <div className="relative w-full max-w-xs">
               <input
                 type="text"
-                placeholder="Buscar por nome, matrícula ou email..."
+                placeholder="Buscar por nome ou matrícula"
                 value={filtroNome}
                 onChange={(e) => setFiltroNome(e.target.value)}
                 className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 pr-10 font-semibold text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -470,45 +470,48 @@ Administrador
             </div>
           </div>
 
-          <div className="mt-6 space-y-5">
-            {registrosFiltrados.length === 0 && (
-              <p className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-slate-500">
-                Nenhum registro encontrado.
-              </p>
-            )}
+         <div className="mt-6 space-y-5">
+  {registrosFiltrados.length === 0 && (
+    <p className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-slate-500">
+      Nenhum registro encontrado.
+    </p>
+  )}
 
-            {registrosFiltrados.map((registro) => (
-              <div key={registro.id}>
-                <p className="mb-2 text-sm font-bold uppercase text-slate-500">
-                  {formatarData(registro.data)}
-                </p>
+  {registrosFiltrados.length > 0 && (
+    <p className="mb-2 text-sm font-bold uppercase text-slate-500">
+      {formatarData(registrosFiltrados[0].data)}
+    </p>
+  )}
 
-                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
-                  <div>
-                    <p className="font-bold text-slate-800">
-                      {registro.academico?.nome ?? "Não informado"}
-                    </p>
+  {registrosFiltrados.map((registro) => (
+    <div
+      key={registro.id}
+      className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4"
+    >
+      <div>
+        <p className="font-bold text-slate-800">
+          {registro.academico?.nome ?? "Não informado"}
+        </p>
 
-                    <p className="text-sm text-slate-500">
-                      Matrícula:{" "}
-                      {registro.academico?.matricula ?? "Não informada"}
-                    </p>
-                  </div>
+        <p className="text-sm text-slate-500">
+          Matrícula:{" "}
+          {registro.academico?.matricula ?? "Não informada"}
+        </p>
+      </div>
 
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-slate-600">
-                      {formatarHora(registro.horaEntrada)} →{" "}
-                      {formatarHora(registro.horaSaida)}
-                    </p>
+      <div className="text-right">
+        <p className="text-sm font-semibold text-slate-600">
+          {formatarHora(registro.horaEntrada)} →{" "}
+          {formatarHora(registro.horaSaida)}
+        </p>
 
-                    <span className="mt-1 inline-block rounded-full bg-blue-100 px-3 py-1 text-sm font-bold text-blue-700">
-                      {formatarTotal(registro.totalTrabalhado)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+        <span className="mt-1 inline-block rounded-full bg-blue-100 px-3 py-1 text-sm font-bold text-blue-700">
+          {formatarTotal(registro.totalTrabalhado)}
+        </span>
+      </div>
+    </div>
+  ))}
+</div>
         </section>
       </main>
     </div>
