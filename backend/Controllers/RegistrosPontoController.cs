@@ -36,6 +36,18 @@ public class RegistrosPontoController : ControllerBase
             return NotFound("Acadêmico não encontrado.");
         }
 
+        var hoje = DateTime.Today;
+
+        var registrosHoje = _context.RegistrosPonto.Count(r =>
+            r.AcademicoId == academicoId &&
+            r.Data == hoje
+        );
+
+        if (registrosHoje >= 2)
+        {
+            return BadRequest("Limite diário atingido: são permitidas apenas 2 entradas e 2 saídas por dia.");
+        }
+
         var entradaAberta = _context.RegistrosPonto.Any(r =>
             r.AcademicoId == academicoId &&
             r.HoraSaida == null
@@ -62,6 +74,19 @@ public class RegistrosPontoController : ControllerBase
     [HttpPost("saida/{academicoId}")]
     public IActionResult RegistrarSaida(int academicoId)
     {
+        var hoje = DateTime.Today;
+
+        var saidasHoje = _context.RegistrosPonto.Count(r =>
+            r.AcademicoId == academicoId &&
+            r.Data == hoje &&
+            r.HoraSaida != null
+        );
+
+        if (saidasHoje >= 2)
+        {
+            return BadRequest("Limite diário atingido: são permitidas apenas 2 saídas por dia.");
+        }
+
         var registro = _context.RegistrosPonto
             .Where(r =>
                 r.AcademicoId == academicoId &&

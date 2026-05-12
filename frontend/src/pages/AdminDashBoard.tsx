@@ -77,7 +77,8 @@ function AdminDashboard() {
 
       carregarAcademicos();
     } else {
-      alert("Erro ao cadastrar.");
+      const erro = await resposta.text();
+      alert(erro || "Erro ao cadastrar.");
     }
   }
 
@@ -121,11 +122,77 @@ function AdminDashboard() {
     return total.split(".")[0];
   }
 
-  const registrosFiltrados = filtroNome
-    ? registros.filter(
-        (registro) =>
-          registro.academico?.nome.toLowerCase() === filtroNome.toLowerCase()
-      )
+  function pegarStatus(academico: Academico) {
+    if (academico.ehAdmin) {
+      return {
+        texto: "Administrador",
+        classe: "bg-blue-100 text-blue-700",
+      };
+    }
+
+    const hoje = new Date().toDateString();
+
+    const registrosHoje = registros.filter((registro) => {
+      const dataRegistro = new Date(registro.data).toDateString();
+
+      return (
+        registro.academico?.email === academico.email &&
+        dataRegistro === hoje
+      );
+    });
+
+    if (registrosHoje.length === 0) {
+      return {
+        texto: "Faltou",
+        classe: "bg-red-100 text-red-700",
+      };
+    }
+
+    const temEntradaAberta = registrosHoje.some(
+      (registro) => registro.horaSaida === null
+    );
+
+    if (temEntradaAberta) {
+      return {
+        texto: "Em expediente",
+        classe: "bg-green-100 text-green-700",
+      };
+    }
+
+    const primeiroRegistro = registrosHoje[0];
+
+    const horaEntrada = new Date(primeiroRegistro.horaEntrada);
+    const limite = new Date(primeiroRegistro.horaEntrada);
+
+    limite.setHours(9, 0, 0, 0);
+
+    if (horaEntrada > limite) {
+      return {
+        texto: "Atrasado",
+        classe: "bg-yellow-100 text-yellow-700",
+      };
+    }
+
+    return {
+      texto: "Fora",
+      classe: "bg-slate-100 text-slate-700",
+    };
+  }
+
+  const termoBusca = filtroNome.toLowerCase();
+
+  const registrosFiltrados = termoBusca
+    ? registros.filter((registro) => {
+        const nome = registro.academico?.nome.toLowerCase() ?? "";
+        const matricula = registro.academico?.matricula.toLowerCase() ?? "";
+        const email = registro.academico?.email.toLowerCase() ?? "";
+
+        return (
+          nome.includes(termoBusca) ||
+          matricula.includes(termoBusca) ||
+          email.includes(termoBusca)
+        );
+      })
     : registros;
 
   return (
@@ -174,6 +241,7 @@ function AdminDashboard() {
                   <label className="text-sm font-semibold text-slate-600">
                     Matrícula
                   </label>
+
                   <input
                     value={matricula}
                     onChange={(e) => setMatricula(e.target.value)}
@@ -185,6 +253,7 @@ function AdminDashboard() {
                   <label className="text-sm font-semibold text-slate-600">
                     Nome
                   </label>
+
                   <input
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
@@ -197,6 +266,7 @@ function AdminDashboard() {
                 <label className="text-sm font-semibold text-slate-600">
                   Email
                 </label>
+
                 <input
                   type="email"
                   value={email}
@@ -209,6 +279,7 @@ function AdminDashboard() {
                 <label className="text-sm font-semibold text-slate-600">
                   Senha
                 </label>
+
                 <input
                   type="password"
                   value={senha}
@@ -241,35 +312,47 @@ function AdminDashboard() {
             </h2>
 
             <div className="mt-4 space-y-3">
-              {academicos.map((academico) => (
-                <div
-                  key={academico.id}
-                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-slate-800">
-                        {academico.nome}
-                      </h3>
+              {academicos.map((academico) => {
+                const status = pegarStatus(academico);
 
-                      <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-bold text-blue-700">
-                        {academico.ehAdmin ? "ADMINISTRADOR" : "ACADÊMICO BOLSISTA"}
-                      </span>
+                return (
+                  <div
+                    key={academico.id}
+                    className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-bold text-slate-800">
+                          {academico.nome}
+                        </h3>
+
+                        <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-bold text-blue-700">
+                          {academico.ehAdmin
+                            ? "ADMINISTRADOR"
+                            : "ACADÊMICO BOLSISTA"}
+                        </span>
+
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-bold ${status.classe}`}
+                        >
+                          {status.texto}
+                        </span>
+                      </div>
+
+                      <p className="mt-1 text-sm text-slate-500">
+                        {academico.matricula} · {academico.email}
+                      </p>
                     </div>
 
-                    <p className="text-sm text-slate-500">
-                      {academico.matricula} · {academico.email}
-                    </p>
+                    <button
+                      onClick={() => excluirAcademico(academico.id)}
+                      className="rounded-lg px-3 py-2 text-red-500 transition hover:bg-red-50"
+                    >
+                      ❌
+                    </button>
                   </div>
-
-                  <button
-                    onClick={() => excluirAcademico(academico.id)}
-                    className="rounded-lg px-3 py-2 text-red-500 transition hover:bg-red-50"
-                  >
-                    ❌
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
@@ -280,22 +363,24 @@ function AdminDashboard() {
               Registros de Ponto
             </h2>
 
-            <select
-              value={filtroNome}
-              onChange={(e) => setFiltroNome(e.target.value)}
-              className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 font-semibold text-slate-700 outline-none"
-            >
-              <option value="">Todos</option>
+            <div className="relative w-full max-w-xs">
+              <input
+                type="text"
+                placeholder="Buscar por nome, matrícula ou email..."
+                value={filtroNome}
+                onChange={(e) => setFiltroNome(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 pr-10 font-semibold text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
 
-             {academicos
-  .filter((academico) => !academico.ehAdmin)
-  .map((academico) => (
-    <option key={academico.id} value={academico.nome}>
-      {academico.nome}
-    </option>
-  ))}
-
-            </select>
+              {filtroNome && (
+                <button
+                  onClick={() => setFiltroNome("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="mt-6 space-y-5">

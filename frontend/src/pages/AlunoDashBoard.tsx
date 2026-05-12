@@ -60,7 +60,8 @@ function AlunoDashboard() {
       alert("Entrada registrada!");
       carregarRegistros(usuario.id);
     } else {
-      alert("Erro ao registrar entrada.");
+      const erro = await resposta.text();
+      alert(erro);
     }
   }
 
