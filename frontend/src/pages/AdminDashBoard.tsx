@@ -123,77 +123,126 @@ function AdminDashboard() {
   }
 
   function pegarStatus(academico: Academico) {
-    if (academico.ehAdmin) {
-      return {
-        texto: "Administrador",
-        classe: "bg-blue-100 text-blue-700",
-      };
-    }
+if (academico.ehAdmin) {
+return {
+texto: "Administrador",
+classe: "bg-blue-100 text-blue-700",
+};
+}
 
-    const hoje = new Date().toDateString();
+const agora = new Date();
 
-    const registrosHoje = registros.filter((registro) => {
-      const dataRegistro = new Date(registro.data).toDateString();
+const hoje = agora.toDateString();
 
-      return (
-        registro.academico?.email === academico.email &&
-        dataRegistro === hoje
-      );
+const registrosHoje = registros.filter((registro) => {
+const dataRegistro = new Date(registro.data).toDateString();
+
+return (
+registro.academico?.email === academico.email &&
+dataRegistro === hoje
+);
+});
+
+// horários limite
+const limiteAtraso = new Date();
+limiteAtraso.setHours(9, 0, 0, 0);
+
+const limiteFalta = new Date();
+limiteFalta.setHours(13, 0, 0, 0);
+
+// ainda não registrou ponto
+if (registrosHoje.length === 0) {
+// entre 09:00 e 12:59 => atrasado
+if (agora >= limiteAtraso && agora < limiteFalta) {
+return {
+texto: "Atrasado",
+classe: "bg-yellow-100 text-yellow-700",
+};
+}
+
+// depois de 13:00 => faltou
+if (agora >= limiteFalta) {
+return {
+texto: "Faltou",
+classe: "bg-red-100 text-red-700",
+};
+}
+
+// antes das 09:00
+return {
+texto: "Ainda não chegou",
+classe: "bg-slate-100 text-slate-700",
+};
+}
+
+// possui entrada aberta
+const temEntradaAberta = registrosHoje.some(
+(registro) => registro.horaSaida === null
+);
+
+const primeiroRegistro = registrosHoje[0];
+
+const horaEntrada = new Date(primeiroRegistro.horaEntrada);
+
+// chegou depois das 09:00
+if (horaEntrada > limiteAtraso) {
+if (temEntradaAberta) {
+return {
+texto: "Em expediente • Chegou com atraso",
+classe: "bg-orange-100 text-orange-700",
+};
+}
+
+return {
+texto: "Chegou com atraso",
+classe: "bg-orange-100 text-orange-700",
+};
+}
+
+// em expediente
+if (temEntradaAberta) {
+return {
+texto: "Em expediente",
+classe: "bg-green-100 text-green-700",
+};
+}
+
+// saiu normalmente
+return {
+texto: "Fora",
+classe: "bg-slate-100 text-slate-700",
+};
+}
+
+const termoBusca = filtroNome.trim().toLowerCase();
+
+  const registrosFiltrados = registros
+    .filter((registro) => {
+      // Se não tem busca, mostra tudo
+      if (!termoBusca) return true;
+
+      const nome = String(registro.academico?.nome || "").toLowerCase();
+      const matricula = String(registro.academico?.matricula || "").toLowerCase();
+      
+      // Filtramos apenas por NOME e MATRÍCULA (removi e-mail para evitar lixo no filtro)
+      return nome.includes(termoBusca) || matricula.includes(termoBusca);
+    })
+    .sort((a, b) => {
+      if (!termoBusca) return 0;
+
+      const nomeA = String(a.academico?.nome || "").toLowerCase();
+      const nomeB = String(b.academico?.nome || "").toLowerCase();
+
+      // PRIORIDADE 1: Se o nome COMEÇA com o que foi digitado, vai para o topo
+      const iniciaA = nomeA.startsWith(termoBusca);
+      const iniciaB = nomeB.startsWith(termoBusca);
+
+      if (iniciaA && !iniciaB) return -1;
+      if (!iniciaA && iniciaB) return 1;
+
+      // PRIORIDADE 2: Ordem alfabética normal para o restante
+      return nomeA.localeCompare(nomeB);
     });
-
-    if (registrosHoje.length === 0) {
-      return {
-        texto: "Faltou",
-        classe: "bg-red-100 text-red-700",
-      };
-    }
-
-    const temEntradaAberta = registrosHoje.some(
-      (registro) => registro.horaSaida === null
-    );
-
-    if (temEntradaAberta) {
-      return {
-        texto: "Em expediente",
-        classe: "bg-green-100 text-green-700",
-      };
-    }
-
-    const primeiroRegistro = registrosHoje[0];
-
-    const horaEntrada = new Date(primeiroRegistro.horaEntrada);
-    const limite = new Date(primeiroRegistro.horaEntrada);
-
-    limite.setHours(9, 0, 0, 0);
-
-    if (horaEntrada > limite) {
-      return {
-        texto: "Atrasado",
-        classe: "bg-yellow-100 text-yellow-700",
-      };
-    }
-
-    return {
-      texto: "Fora",
-      classe: "bg-slate-100 text-slate-700",
-    };
-  }
-
-  const termoBusca = filtroNome.toLowerCase();
-
-  const registrosFiltrados = termoBusca
-    ? registros.filter((registro) => {
-        const nome = registro.academico?.nome.toLowerCase() ?? "";
-        const matricula = registro.academico?.matricula.toLowerCase() ?? "";
-        const email = registro.academico?.email.toLowerCase() ?? "";
-
-        return (
-          nome.includes(termoBusca) ||
-          matricula.includes(termoBusca) ||
-          email.includes(termoBusca)
-        );
-      })
-    : registros;
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -332,11 +381,49 @@ function AdminDashboard() {
                             : "ACADÊMICO BOLSISTA"}
                         </span>
 
-                        <span
-                          className={`rounded-full px-2 py-1 text-xs font-bold ${status.classe}`}
-                        >
-                          {status.texto}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+{status.texto.includes("Em expediente") && (
+<span className="rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-700">
+Em expediente
+</span>
+)}
+
+{status.texto.includes("Chegou com atraso") && (
+<span className="rounded-full bg-yellow-100 px-2 py-1 text-xs font-bold text-yellow-700">
+Chegou com atraso
+</span>
+)}
+
+{status.texto === "Atrasado" && (
+<span className="rounded-full bg-orange-100 px-2 py-1 text-xs font-bold text-orange-700">
+Atrasado
+</span>
+)}
+
+{status.texto === "Faltou" && (
+<span className="rounded-full bg-red-100 px-2 py-1 text-xs font-bold text-red-700">
+Faltou
+</span>
+)}
+
+{status.texto === "Fora" && (
+<span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
+Fora
+</span>
+)}
+
+{status.texto === "Ainda não chegou" && (
+<span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
+Ainda não chegou
+</span>
+)}
+
+{status.texto === "Administrador" && (
+<span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-bold text-blue-700">
+Administrador
+</span>
+)}
+</div>
                       </div>
 
                       <p className="mt-1 text-sm text-slate-500">
