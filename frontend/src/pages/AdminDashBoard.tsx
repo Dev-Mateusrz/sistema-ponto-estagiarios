@@ -453,21 +453,17 @@ function AdminDashboard() {
 
       <header className="bg-gradient-to-r from-blue-900 via-blue-700 to-sky-500 text-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-4">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20">
-              🕒
-            </div>
+          <div className="flex items-center">
+  <div>
+    <p className="text-xs font-semibold uppercase tracking-widest">
+      Prefeitura do Rio · Subsecretaria de Gestão
+    </p>
 
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest">
-                Prefeitura do Rio · Subsecretaria de Gestão
-              </p>
-
-              <h1 className="text-xl font-bold">
-                Ponto <span className="text-orange-400">Digital</span>
-              </h1>
-            </div>
-          </div>
+    <h1 className="text-xl font-bold">
+      Ponto <span className="text-orange-400">Digital</span>
+    </h1>
+  </div>
+</div>
 
           <p className="text-xl font-bold">
             {new Date().toLocaleTimeString("pt-BR", {
