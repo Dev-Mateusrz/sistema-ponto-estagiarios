@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import jsPDF from "jspdf";
+import { Trash2 } from "lucide-react";
 
 type Academico = {
   id: number;
@@ -27,6 +28,8 @@ type StatusAcademico = {
   texto: string;
 };
 
+type TipoRelatorio = "semanal" | "mensal" | "anual";
+
 function AdminDashboard() {
   const [academicos, setAcademicos] = useState<Academico[]>([]);
   const [registros, setRegistros] = useState<RegistroPonto[]>([]);
@@ -39,6 +42,12 @@ function AdminDashboard() {
 
   const [filtroNome, setFiltroNome] = useState("");
   const [diaSelecionado, setDiaSelecionado] = useState<number | null>(null);
+  const [mesSelecionado, setMesSelecionado] = useState(new Date());
+
+  const [tipoRelatorio, setTipoRelatorio] =
+    useState<TipoRelatorio>("semanal");
+  const [menuRelatorioAberto, setMenuRelatorioAberto] = useState(false);
+  const [toast, setToast] = useState("");
 
   function carregarAcademicos() {
     fetch("http://localhost:5294/academicos")
@@ -90,7 +99,6 @@ function AdminDashboard() {
 
   async function excluirAcademico(id: number) {
     const confirmar = confirm("Tem certeza que deseja excluir este usuário?");
-
     if (!confirmar) return;
 
     const resposta = await fetch(`http://localhost:5294/academicos/${id}`, {
@@ -108,7 +116,6 @@ function AdminDashboard() {
   function formatarData(data: string) {
     const dataSemHora = data.split("T")[0];
     const [ano, mes, dia] = dataSemHora.split("-").map(Number);
-
     const dataLocal = new Date(ano, mes - 1, dia);
 
     return dataLocal.toLocaleDateString("pt-BR", {
@@ -142,6 +149,12 @@ function AdminDashboard() {
     const dataSemHora = data.split("T")[0];
     const [, mes] = dataSemHora.split("-").map(Number);
     return mes - 1;
+  }
+
+  function obterAnoRegistro(data: string) {
+    const dataSemHora = data.split("T")[0];
+    const [ano] = dataSemHora.split("-").map(Number);
+    return ano;
   }
 
   function pegarStatus(academico: Academico): StatusAcademico | null {
@@ -199,77 +212,122 @@ function AdminDashboard() {
     return { texto: "Fora" };
   }
 
-  function gerarRelatorioSemanal() {
+  function segundosDoRegistro(registro: RegistroPonto) {
+    if (!registro.totalTrabalhado) return 0;
+
+    const [horas, minutos, segundos] = registro.totalTrabalhado
+      .split(".")[0]
+      .split(":")
+      .map(Number);
+
+    return horas * 3600 + minutos * 60 + segundos;
+  }
+
+  function formatarSegundos(totalSegundos: number) {
+    const horas = Math.floor(totalSegundos / 3600);
+    const minutos = Math.floor((totalSegundos % 3600) / 60);
+    const segundos = totalSegundos % 60;
+
+    return `${String(horas).padStart(2, "0")}:${String(minutos).padStart(
+      2,
+      "0"
+    )}:${String(segundos).padStart(2, "0")}`;
+  }
+
+  function gerarRelatorio(tipo: TipoRelatorio) {
     const hoje = new Date();
 
-    const inicioSemana = new Date(hoje);
-    inicioSemana.setDate(hoje.getDate() - hoje.getDay());
-    inicioSemana.setHours(0, 0, 0, 0);
+    let inicio = new Date();
+    let fim = new Date();
 
-    const fimSemana = new Date(inicioSemana);
-    fimSemana.setDate(inicioSemana.getDate() + 6);
-    fimSemana.setHours(23, 59, 59, 999);
+    if (tipo === "semanal") {
+      inicio = new Date(hoje);
+      inicio.setDate(hoje.getDate() - hoje.getDay());
+      inicio.setHours(0, 0, 0, 0);
+
+      fim = new Date(inicio);
+      fim.setDate(inicio.getDate() + 6);
+      fim.setHours(23, 59, 59, 999);
+    }
+
+    if (tipo === "mensal") {
+      inicio = new Date(anoAtual, mesAtual, 1);
+      inicio.setHours(0, 0, 0, 0);
+
+      fim = new Date(anoAtual, mesAtual + 1, 0);
+      fim.setHours(23, 59, 59, 999);
+    }
+
+    if (tipo === "anual") {
+      inicio = new Date(anoAtual, 0, 1);
+      inicio.setHours(0, 0, 0, 0);
+
+      fim = new Date(anoAtual, 11, 31);
+      fim.setHours(23, 59, 59, 999);
+    }
 
     return academicos
       .filter((academico) => !academico.ehAdmin)
       .map((academico) => {
-        const registrosDaSemana = registros.filter((registro) => {
+        const registrosPeriodo = registros.filter((registro) => {
           const dataRegistro = new Date(registro.data);
 
           return (
             registro.academico?.email === academico.email &&
-            dataRegistro >= inicioSemana &&
-            dataRegistro <= fimSemana
+            dataRegistro >= inicio &&
+            dataRegistro <= fim
           );
         });
 
-        const totalSegundos = registrosDaSemana.reduce((total, registro) => {
-          if (!registro.totalTrabalhado) return total;
-
-          const [horas, minutos, segundos] = registro.totalTrabalhado
-            .split(".")[0]
-            .split(":")
-            .map(Number);
-
-          return total + horas * 3600 + minutos * 60 + segundos;
-        }, 0);
-
-        const horas = Math.floor(totalSegundos / 3600);
-        const minutos = Math.floor((totalSegundos % 3600) / 60);
-        const segundos = totalSegundos % 60;
+        const totalSegundos = registrosPeriodo.reduce(
+          (total, registro) => total + segundosDoRegistro(registro),
+          0
+        );
 
         return {
           nome: academico.nome,
           matricula: academico.matricula,
-          totalRegistros: registrosDaSemana.length,
-          totalHoras: `${String(horas).padStart(2, "0")}:${String(
-            minutos
-          ).padStart(2, "0")}:${String(segundos).padStart(2, "0")}`,
+          totalRegistros: registrosPeriodo.length,
+          totalHoras: formatarSegundos(totalSegundos),
         };
       });
   }
 
-  function gerarPdfRelatorioSemanal() {
-    const relatorio = gerarRelatorioSemanal();
+  function gerarPdfRelatorio(tipo: TipoRelatorio = tipoRelatorio) {
+    const relatorio = gerarRelatorio(tipo);
     const pdf = new jsPDF();
 
+    const titulo =
+      tipo === "semanal"
+        ? "Relatório Semanal de Ponto"
+        : tipo === "mensal"
+        ? "Relatório Mensal de Ponto"
+        : "Relatório Anual de Ponto";
+
+    const periodo =
+      tipo === "semanal"
+        ? "Últimos 7 dias"
+        : tipo === "mensal"
+        ? nomeMesAtual()
+        : `Ano de ${anoAtual}`;
+
     pdf.setFontSize(18);
-    pdf.text("Relatório Semanal de Ponto", 20, 20);
+    pdf.text(titulo, 20, 20);
 
     pdf.setFontSize(11);
     pdf.text("Subsecretaria de Gestão - Prefeitura do Rio", 20, 30);
+    pdf.text(`Período: ${periodo}`, 20, 40);
+    pdf.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")}`, 20, 50);
 
-    pdf.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")}`, 20, 40);
-
-    let posicaoY = 55;
+    let posicaoY = 65;
 
     relatorio.forEach((item) => {
       pdf.setFontSize(12);
 
       pdf.text(`Nome: ${item.nome}`, 20, posicaoY);
       pdf.text(`Matrícula: ${item.matricula}`, 20, posicaoY + 8);
-      pdf.text(`Registros na semana: ${item.totalRegistros}`, 20, posicaoY + 16);
-      pdf.text(`Total semanal: ${item.totalHoras}`, 20, posicaoY + 24);
+      pdf.text(`Registros: ${item.totalRegistros}`, 20, posicaoY + 16);
+      pdf.text(`Total: ${item.totalHoras}`, 20, posicaoY + 24);
 
       posicaoY += 40;
 
@@ -280,22 +338,30 @@ function AdminDashboard() {
     });
 
     if (posicaoY > 230) {
-  pdf.addPage();
-  posicaoY = 30;
-}
-posicaoY += 20;
-pdf.setFontSize(12);
-pdf.text("Assinatura do responsável:", 20, posicaoY);
-pdf.line(20, posicaoY + 25, 120, posicaoY + 25);
+      pdf.addPage();
+      posicaoY = 30;
+    }
 
+    posicaoY += 20;
 
+    pdf.setFontSize(12);
+    pdf.text("Assinatura do responsável:", 20, posicaoY);
+    pdf.line(20, posicaoY + 25, 120, posicaoY + 25);
 
-    pdf.save("relatorio-semanal-ponto.pdf");
+    pdf.save(`relatorio-${tipo}-ponto.pdf`);
+
+    const nomeTipo =
+      tipo === "semanal" ? "semanal" : tipo === "mensal" ? "mensal" : "anual";
+
+    setToast(`Relatório ${nomeTipo} gerado com sucesso!`);
+
+    setTimeout(() => {
+      setToast("");
+    }, 3000);
   }
 
-  const hoje = new Date();
-  const mesAtual = hoje.getMonth();
-  const anoAtual = hoje.getFullYear();
+  const mesAtual = mesSelecionado.getMonth();
+  const anoAtual = mesSelecionado.getFullYear();
 
   const diasDoMes = Array.from(
     { length: new Date(anoAtual, mesAtual + 1, 0).getDate() },
@@ -303,19 +369,37 @@ pdf.line(20, posicaoY + 25, 120, posicaoY + 25);
   );
 
   function nomeMesAtual() {
-    return hoje.toLocaleDateString("pt-BR", {
+    return mesSelecionado.toLocaleDateString("pt-BR", {
       month: "long",
+      year: "numeric",
     });
+  }
+
+  function mesAnterior() {
+    setMesSelecionado(new Date(anoAtual, mesAtual - 1, 1));
+    setDiaSelecionado(null);
+  }
+
+  function proximoMes() {
+    setMesSelecionado(new Date(anoAtual, mesAtual + 1, 1));
+    setDiaSelecionado(null);
   }
 
   function registrosDoDia(dia: number) {
     return registros.some(
       (registro) =>
         obterDiaRegistro(registro.data) === dia &&
-        obterMesRegistro(registro.data) === mesAtual
+        obterMesRegistro(registro.data) === mesAtual &&
+        obterAnoRegistro(registro.data) === anoAtual
     );
   }
 
+  function selecionarTipoRelatorio(tipo: TipoRelatorio) {
+    setTipoRelatorio(tipo);
+    setMenuRelatorioAberto(false);
+  }
+
+  
   const termoBusca = filtroNome.trim().toLowerCase();
 
   const registrosFiltrados = registros
@@ -333,8 +417,9 @@ pdf.line(20, posicaoY + 25, 120, posicaoY + 25);
         obterDiaRegistro(registro.data) === diaSelecionado;
 
       const passouMes = obterMesRegistro(registro.data) === mesAtual;
+      const passouAno = obterAnoRegistro(registro.data) === anoAtual;
 
-      return passouBusca && passouDia && passouMes;
+      return passouBusca && passouDia && passouMes && passouAno;
     })
     .sort((a, b) => {
       const dataA = new Date(a.horaEntrada).getTime();
@@ -360,6 +445,12 @@ pdf.line(20, posicaoY + 25, 120, posicaoY + 25);
 
   return (
     <div className="min-h-screen bg-slate-100">
+      {toast && (
+        <div className="fixed right-6 top-6 z-50 rounded-xl bg-green-600 px-5 py-3 font-semibold text-white shadow-lg">
+          {toast}
+        </div>
+      )}
+
       <header className="bg-gradient-to-r from-blue-900 via-blue-700 to-sky-500 text-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-4">
           <div className="flex items-center gap-4">
@@ -467,12 +558,93 @@ pdf.line(20, posicaoY + 25, 120, posicaoY + 25);
                 Cadastrar Usuário
               </button>
 
-              <button
-                onClick={gerarPdfRelatorioSemanal}
-                className="rounded-xl bg-green-600 p-3 font-bold text-white transition hover:bg-green-700"
-              >
-                Gerar Relatório Semanal
-              </button>
+              <div className="relative">
+                <div className="flex overflow-hidden rounded-xl bg-green-600 text-white shadow-sm">
+                  <button
+                    onClick={() => gerarPdfRelatorio()}
+                    className="flex-1 p-3 font-bold transition hover:bg-green-700"
+                  >
+                    Gerar Relatório 
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      setMenuRelatorioAberto(!menuRelatorioAberto)
+                    }
+                    className="border-l border-green-400 px-4 font-bold transition hover:bg-green-700"
+                  >
+                    ˅
+                  </button>
+                </div>
+
+                {menuRelatorioAberto && (
+                  <div className="absolute left-0 z-20 mt-2 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                    <p className="px-3 py-2 text-xs font-bold uppercase text-slate-500">
+                      Tipo de relatório
+                    </p>
+
+                    <button
+                      onClick={() => selecionarTipoRelatorio("semanal")}
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left hover:bg-slate-100"
+                    >
+                      <div className="flex gap-3">
+                        <span></span>
+
+                        <div>
+                          <p className="font-bold text-slate-800">Semanal</p>
+                          <p className="text-sm text-slate-500">
+                            Últimos 7 dias
+                          </p>
+                        </div>
+                      </div>
+
+                      {tipoRelatorio === "semanal" && (
+                        <span className="font-bold text-green-600">✓</span>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => selecionarTipoRelatorio("mensal")}
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left hover:bg-slate-100"
+                    >
+                      <div className="flex gap-3">
+                        <span></span>
+
+                        <div>
+                          <p className="font-bold text-slate-800">Mensal</p>
+                          <p className="text-sm text-slate-500">
+                            Mês selecionado
+                          </p>
+                        </div>
+                      </div>
+
+                      {tipoRelatorio === "mensal" && (
+                        <span className="font-bold text-green-600">✓</span>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => selecionarTipoRelatorio("anual")}
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left hover:bg-slate-100"
+                    >
+                      <div className="flex gap-3">
+                        <span></span>
+
+                        <div>
+                          <p className="font-bold text-slate-800">Anual</p>
+                          <p className="text-sm text-slate-500">
+                            Ano corrente, agrupado por mês
+                          </p>
+                        </div>
+                      </div>
+
+                      {tipoRelatorio === "anual" && (
+                        <span className="font-bold text-green-600">✓</span>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -545,11 +717,11 @@ pdf.line(20, posicaoY + 25, 120, posicaoY + 25);
                     </div>
 
                     <button
-                      onClick={() => excluirAcademico(academico.id)}
-                      className="rounded-lg px-3 py-2 text-red-500 transition hover:bg-red-50"
-                    >
-                      ❌
-                    </button>
+  onClick={() => excluirAcademico(academico.id)}
+  className="flex items-center justify-center rounded-xl p-2 text-red-500 transition hover:bg-red-100 hover:text-red-700"
+>
+  <Trash2 size={18} strokeWidth={2.2} />
+</button>
                   </div>
                 );
               })}
@@ -588,9 +760,27 @@ pdf.line(20, posicaoY + 25, 120, posicaoY + 25);
           </div>
 
           <div className="mt-6">
-            <p className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
-              Filtrar por dia · {nomeMesAtual()}
-            </p>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                Filtrar por dia · {nomeMesAtual()}
+              </p>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={mesAnterior}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  &lt;
+                </button>
+
+                <button
+                  onClick={proximoMes}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  &gt;
+                </button>
+              </div>
+            </div>
 
             <div className="flex flex-wrap gap-2">
               <button
