@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import jsPDF from "jspdf";
 
 type Academico = {
   id: number;
@@ -244,6 +245,95 @@ const termoBusca = filtroNome.trim().toLowerCase();
       return nomeA.localeCompare(nomeB);
     });
 
+function gerarRelatorioSemanal() {
+  const hoje = new Date();
+
+  const inicioSemana = new Date(hoje);
+  inicioSemana.setDate(hoje.getDate() - hoje.getDay());
+  inicioSemana.setHours(0, 0, 0, 0);
+
+  const fimSemana = new Date(inicioSemana);
+  fimSemana.setDate(inicioSemana.getDate() + 6);
+  fimSemana.setHours(23, 59, 59, 999);
+
+  return academicos
+    .filter((academico) => !academico.ehAdmin)
+    .map((academico) => {
+      const registrosDaSemana = registros.filter((registro) => {
+        const dataRegistro = new Date(registro.data);
+
+        return (
+          registro.academico?.email === academico.email &&
+          dataRegistro >= inicioSemana &&
+          dataRegistro <= fimSemana
+        );
+      });
+
+      const totalSegundos = registrosDaSemana.reduce((total, registro) => {
+        if (!registro.totalTrabalhado) return total;
+
+        const [horas, minutos, segundos] = registro.totalTrabalhado
+          .split(".")[0]
+          .split(":")
+          .map(Number);
+
+        return total + horas * 3600 + minutos * 60 + segundos;
+      }, 0);
+
+      const horas = Math.floor(totalSegundos / 3600);
+      const minutos = Math.floor((totalSegundos % 3600) / 60);
+      const segundos = totalSegundos % 60;
+
+      return {
+        nome: academico.nome,
+        matricula: academico.matricula,
+        totalRegistros: registrosDaSemana.length,
+        totalHoras: `${String(horas).padStart(2, "0")}:${String(
+          minutos
+        ).padStart(2, "0")}:${String(segundos).padStart(2, "0")}`,
+      };
+    });
+}
+
+function gerarPdfRelatorioSemanal() {
+  const relatorio = gerarRelatorioSemanal();
+
+  const pdf = new jsPDF();
+
+  pdf.setFontSize(18);
+  pdf.text("Relatório Semanal de Ponto", 20, 20);
+
+  pdf.setFontSize(11);
+  pdf.text("Subsecretaria de Gestão - Prefeitura do Rio", 20, 30);
+
+  pdf.text(
+    `Gerado em: ${new Date().toLocaleDateString("pt-BR")}`,
+    20,
+    40
+  );
+
+  let posicaoY = 55;
+
+  relatorio.forEach((item) => {
+    pdf.setFontSize(12);
+
+    pdf.text(`Nome: ${item.nome}`, 20, posicaoY);
+    pdf.text(`Matrícula: ${item.matricula}`, 20, posicaoY + 8);
+    pdf.text(`Registros na semana: ${item.totalRegistros}`, 20, posicaoY + 16);
+    pdf.text(`Total semanal: ${item.totalHoras}`, 20, posicaoY + 24);
+
+    posicaoY += 40;
+
+    if (posicaoY > 270) {
+      pdf.addPage();
+      posicaoY = 20;
+    }
+  });
+
+  pdf.save("relatorio-semanal-ponto.pdf");
+}
+
+
   return (
     <div className="min-h-screen bg-slate-100">
       <header className="bg-gradient-to-r from-blue-900 via-blue-700 to-sky-500 text-white">
@@ -352,6 +442,15 @@ const termoBusca = filtroNome.trim().toLowerCase();
               >
                 Cadastrar Usuário
               </button>
+
+<button
+  onClick={gerarPdfRelatorioSemanal}
+  className="rounded-xl bg-green-600 p-3 font-bold text-white transition hover:bg-green-700"
+>
+  Gerar Relatório Semanal
+</button>
+
+
             </div>
           </div>
 
