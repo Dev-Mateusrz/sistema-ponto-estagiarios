@@ -61,7 +61,7 @@ public class RegistrosPontoController : ControllerBase
         var registro = new RegistroPonto
         {
             AcademicoId = academicoId,
-            Data = DateTime.Today,
+            Data = DateTime.Now.Date,
             HoraEntrada = DateTime.Now
         };
 
