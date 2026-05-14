@@ -9,7 +9,6 @@ type Academico = {
   email: string;
   senha: string;
   ehAdmin: boolean;
-
   horarioEntrada: string;
   horarioSaida: string;
 };
@@ -31,8 +30,6 @@ type StatusAcademico = {
   texto: string;
 };
 
-type TipoRelatorio = "semanal" | "mensal" | "anual";
-
 function AdminDashboard() {
   const [academicos, setAcademicos] = useState<Academico[]>([]);
   const [registros, setRegistros] = useState<RegistroPonto[]>([]);
@@ -43,17 +40,16 @@ function AdminDashboard() {
   const [senha, setSenha] = useState("");
   const [ehAdmin, setEhAdmin] = useState(false);
 
-const [horarioEntrada, setHorarioEntrada] = useState("");
-const [horarioSaida, setHorarioSaida] = useState("");
+  const [horarioEntrada, setHorarioEntrada] = useState("");
+  const [horarioSaida, setHorarioSaida] = useState("");
 
   const [filtroNome, setFiltroNome] = useState("");
   const [diaSelecionado, setDiaSelecionado] = useState<number | null>(null);
   const [mesSelecionado, setMesSelecionado] = useState(new Date());
 
-  const [tipoRelatorio, setTipoRelatorio] =
-    useState<TipoRelatorio>("semanal");
-  const [menuRelatorioAberto, setMenuRelatorioAberto] = useState(false);
   const [toast, setToast] = useState("");
+  const [dataInicial, setDataInicial] = useState("");
+  const [dataFinal, setDataFinal] = useState("");
 
   function carregarAcademicos() {
     fetch("http://localhost:5294/academicos")
@@ -73,46 +69,44 @@ const [horarioSaida, setHorarioSaida] = useState("");
   }, []);
 
   async function cadastrarAcademico() {
+    if (!ehAdmin && (!horarioEntrada || !horarioSaida)) {
+      alert("Informe os horários do acadêmico.");
+      return;
+    }
 
-  if (!ehAdmin && (!horarioEntrada || !horarioSaida)) {
-    alert("Informe os horários do acadêmico.");
-    return;
+    const resposta = await fetch("http://localhost:5294/academicos", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        matricula,
+        nome,
+        email,
+        senha,
+        ehAdmin,
+        horarioEntrada,
+        horarioSaida,
+      }),
+    });
+
+    if (resposta.ok) {
+      alert("Usuário cadastrado!");
+
+      setMatricula("");
+      setNome("");
+      setEmail("");
+      setSenha("");
+      setEhAdmin(false);
+      setHorarioEntrada("");
+      setHorarioSaida("");
+
+      carregarAcademicos();
+    } else {
+      const erro = await resposta.text();
+      alert(erro || "Erro ao cadastrar.");
+    }
   }
-
-  const resposta = await fetch("http://localhost:5294/academicos", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      matricula,
-      nome,
-      email,
-      senha,
-      ehAdmin,
-      horarioEntrada,
-      horarioSaida,
-    }),
-  });
-
-  if (resposta.ok) {
-    alert("Usuário cadastrado!");
-
-    setMatricula("");
-    setNome("");
-    setEmail("");
-    setSenha("");
-    setEhAdmin(false);
-
-    setHorarioEntrada("");
-    setHorarioSaida("");
-
-    carregarAcademicos();
-  } else {
-    const erro = await resposta.text();
-    alert(erro || "Erro ao cadastrar.");
-  }
-}
 
   async function excluirAcademico(id: number) {
     const confirmar = confirm("Tem certeza que deseja excluir este usuário?");
@@ -174,92 +168,83 @@ const [horarioSaida, setHorarioSaida] = useState("");
     return ano;
   }
 
-function criarDataComHorario(horario: string) {
-  const [hora, minuto] = horario.split(":").map(Number);
+  function criarDataComHorario(horario: string) {
+    const [hora, minuto] = horario.split(":").map(Number);
+    const data = new Date();
 
-  const data = new Date();
+    data.setHours(hora, minuto, 0, 0);
 
-  data.setHours(hora, minuto, 0, 0);
-
-  return data;
-}
+    return data;
+  }
 
   function pegarStatus(academico: Academico): StatusAcademico | null {
-  if (academico.ehAdmin) return null;
+    if (academico.ehAdmin) return null;
 
-  const agora = new Date();
-  const hoje = agora.toDateString();
+    const agora = new Date();
+    const hoje = agora.toDateString();
 
-  const registrosHoje = registros.filter((registro) => {
-    const dataRegistro = new Date(registro.data).toDateString();
+    const registrosHoje = registros.filter((registro) => {
+      const dataRegistro = new Date(registro.data).toDateString();
 
-    return (
-      registro.academico?.email === academico.email &&
-      dataRegistro === hoje
+      return (
+        registro.academico?.email === academico.email &&
+        dataRegistro === hoje
+      );
+    });
+
+    const limiteAtraso = criarDataComHorario(academico.horarioEntrada);
+    const limiteFalta = criarDataComHorario(academico.horarioSaida);
+
+    const toleranciaMinutos = 10;
+    limiteAtraso.setMinutes(limiteAtraso.getMinutes() + toleranciaMinutos);
+
+    if (registrosHoje.length === 0) {
+      if (agora >= limiteAtraso && agora < limiteFalta) {
+        return {
+          texto: `Atrasado • Entrada prevista: ${academico.horarioEntrada}`,
+        };
+      }
+
+      if (agora >= limiteFalta) {
+        return {
+          texto: `Faltou • Expediente encerrado às ${academico.horarioSaida}`,
+        };
+      }
+
+      return {
+        texto: `Ainda não chegou • Entrada às ${academico.horarioEntrada}`,
+      };
+    }
+
+    const temEntradaAberta = registrosHoje.some(
+      (registro) => registro.horaSaida === null
     );
-  });
 
-  const limiteAtraso = criarDataComHorario(
-    academico.horarioEntrada
-  );
+    const primeiroRegistro = registrosHoje[0];
+    const horaEntrada = new Date(primeiroRegistro.horaEntrada);
 
-  const limiteFalta = criarDataComHorario(
-    academico.horarioSaida
-  );
+    if (horaEntrada > limiteAtraso) {
+      if (temEntradaAberta) {
+        return {
+          texto: "Em expediente • Chegou com atraso",
+        };
+      }
 
-  const toleranciaMinutos = 10;
-
-  limiteAtraso.setMinutes(
-    limiteAtraso.getMinutes() + toleranciaMinutos
-  );
-
-  if (registrosHoje.length === 0) {
-    if (agora >= limiteAtraso && agora < limiteFalta) {
       return {
-        texto: `Atrasado • Entrada prevista: ${academico.horarioEntrada}`,
+        texto: "Chegou com atraso",
       };
     }
 
-    if (agora >= limiteFalta) {
-      return {
-        texto: `Faltou • Expediente encerrado às ${academico.horarioSaida}`,
-      };
-    }
-
-    return {
-      texto: `Ainda não chegou • Entrada às ${academico.horarioEntrada}`,
-    };
-  }
-
-  const temEntradaAberta = registrosHoje.some(
-    (registro) => registro.horaSaida === null
-  );
-
-  const primeiroRegistro = registrosHoje[0];
-  const horaEntrada = new Date(primeiroRegistro.horaEntrada);
-
-  if (horaEntrada > limiteAtraso) {
     if (temEntradaAberta) {
       return {
-        texto: `Em expediente • Chegou com atraso`,
+        texto: `Em expediente até ${academico.horarioSaida}`,
       };
     }
 
     return {
-      texto: `Chegou com atraso`,
+      texto: "Fora",
     };
   }
-
-  if (temEntradaAberta) {
-    return {
-      texto: `Em expediente até ${academico.horarioSaida}`,
-    };
-  }
-
-  return {
-    texto: "Fora",
-  };
-}
 
   function segundosDoRegistro(registro: RegistroPonto) {
     if (!registro.totalTrabalhado) return 0;
@@ -283,37 +268,17 @@ function criarDataComHorario(horario: string) {
     )}:${String(segundos).padStart(2, "0")}`;
   }
 
-  function gerarRelatorio(tipo: TipoRelatorio) {
-    const hoje = new Date();
-
-    let inicio = new Date();
-    let fim = new Date();
-
-    if (tipo === "semanal") {
-      inicio = new Date(hoje);
-      inicio.setDate(hoje.getDate() - hoje.getDay());
-      inicio.setHours(0, 0, 0, 0);
-
-      fim = new Date(inicio);
-      fim.setDate(inicio.getDate() + 6);
-      fim.setHours(23, 59, 59, 999);
+  function gerarRelatorio() {
+    if (!dataInicial || !dataFinal) {
+      alert("Selecione o período do relatório.");
+      return [];
     }
 
-    if (tipo === "mensal") {
-      inicio = new Date(anoAtual, mesAtual, 1);
-      inicio.setHours(0, 0, 0, 0);
+    const inicio = new Date(dataInicial);
+    inicio.setHours(0, 0, 0, 0);
 
-      fim = new Date(anoAtual, mesAtual + 1, 0);
-      fim.setHours(23, 59, 59, 999);
-    }
-
-    if (tipo === "anual") {
-      inicio = new Date(anoAtual, 0, 1);
-      inicio.setHours(0, 0, 0, 0);
-
-      fim = new Date(anoAtual, 11, 31);
-      fim.setHours(23, 59, 59, 999);
-    }
+    const fim = new Date(dataFinal);
+    fim.setHours(23, 59, 59, 999);
 
     return academicos
       .filter((academico) => !academico.ehAdmin)
@@ -342,43 +307,116 @@ function criarDataComHorario(horario: string) {
       });
   }
 
-  function gerarPdfRelatorio(tipo: TipoRelatorio = tipoRelatorio) {
-    const relatorio = gerarRelatorio(tipo);
-    const pdf = new jsPDF();
+  function gerarPdfRelatorio() {
+  if (!dataInicial || !dataFinal) {
+    alert("Selecione o período do relatório.");
+    return;
+  }
 
-    const titulo =
-      tipo === "semanal"
-        ? "Relatório Semanal de Ponto"
-        : tipo === "mensal"
-        ? "Relatório Mensal de Ponto"
-        : "Relatório Anual de Ponto";
+  function formatarDataInput(data: string) {
+    const [ano, mes, dia] = data.split("-").map(Number);
+    return new Date(ano, mes - 1, dia).toLocaleDateString("pt-BR");
+  }
 
-    const periodo =
-      tipo === "semanal"
-        ? "Últimos 7 dias"
-        : tipo === "mensal"
-        ? nomeMesAtual()
-        : `Ano de ${anoAtual}`;
+  function formatarDataRelatorio(data: string) {
+    const dataSemHora = data.split("T")[0];
+    const [ano, mes, dia] = dataSemHora.split("-").map(Number);
 
-    pdf.setFontSize(18);
-    pdf.text(titulo, 20, 20);
+    return new Date(ano, mes - 1, dia).toLocaleDateString("pt-BR", {
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+  }
 
-    pdf.setFontSize(11);
-    pdf.text("Subsecretaria de Gestão - Prefeitura do Rio", 20, 30);
-    pdf.text(`Período: ${periodo}`, 20, 40);
-    pdf.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")}`, 20, 50);
+  const [anoInicio, mesInicio, diaInicio] = dataInicial.split("-").map(Number);
+const [anoFim, mesFim, diaFim] = dataFinal.split("-").map(Number);
 
-    let posicaoY = 65;
+const inicio = new Date(anoInicio, mesInicio - 1, diaInicio, 0, 0, 0, 0);
+const fim = new Date(anoFim, mesFim - 1, diaFim, 23, 59, 59, 999);
 
-    relatorio.forEach((item) => {
-      pdf.setFontSize(12);
+  const registrosPeriodo = registros
+    .filter((registro) => {
+      const dataRegistro = new Date(registro.data);
 
-      pdf.text(`Nome: ${item.nome}`, 20, posicaoY);
-      pdf.text(`Matrícula: ${item.matricula}`, 20, posicaoY + 8);
-      pdf.text(`Registros: ${item.totalRegistros}`, 20, posicaoY + 16);
-      pdf.text(`Total: ${item.totalHoras}`, 20, posicaoY + 24);
+      return dataRegistro >= inicio && dataRegistro <= fim;
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.data).getTime() - new Date(a.data).getTime()
+    );
 
-      posicaoY += 40;
+  if (registrosPeriodo.length === 0) {
+    alert("Nenhum registro encontrado nesse período.");
+    return;
+  }
+
+  const registrosAgrupadosPorDia = registrosPeriodo.reduce(
+    (grupos: Record<string, RegistroPonto[]>, registro) => {
+      const dataFormatada = formatarDataRelatorio(registro.data);
+
+      if (!grupos[dataFormatada]) {
+        grupos[dataFormatada] = [];
+      }
+
+      grupos[dataFormatada].push(registro);
+
+      return grupos;
+    },
+    {}
+  );
+
+  const pdf = new jsPDF();
+
+  const periodo = `${formatarDataInput(dataInicial)} até ${formatarDataInput(
+    dataFinal
+  )}`;
+
+  pdf.setFontSize(18);
+  pdf.text("Relatório de Ponto", 20, 20);
+
+  pdf.setFontSize(11);
+  pdf.text("Subsecretaria de Gestão - Prefeitura do Rio", 20, 30);
+  pdf.text(`Período: ${periodo}`, 20, 40);
+  pdf.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")}`, 20, 50);
+
+  let posicaoY = 70;
+
+  Object.entries(registrosAgrupadosPorDia).forEach(([data, registrosDoDia]) => {
+    pdf.setFontSize(12);
+    pdf.setFont("helvetica", "bold");
+    pdf.text(data.toUpperCase(), 20, posicaoY);
+
+    posicaoY += 10;
+
+    registrosDoDia.forEach((registro) => {
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "bold");
+
+      pdf.text("Nome", 25, posicaoY);
+      pdf.text("Entrada", 75, posicaoY);
+      pdf.text("Saída", 115, posicaoY);
+      pdf.text("Total", 155, posicaoY);
+
+      posicaoY += 7;
+
+      pdf.setFont("helvetica", "normal");
+
+      pdf.text(registro.academico?.nome ?? "Não informado", 25, posicaoY);
+      pdf.text(formatarHora(registro.horaEntrada), 75, posicaoY);
+
+      pdf.text(
+        registro.horaSaida
+          ? formatarHora(registro.horaSaida)
+          : "Não registrada",
+        115,
+        posicaoY
+      );
+
+      pdf.text(formatarTotal(registro.totalTrabalhado), 155, posicaoY);
+
+      posicaoY += 14;
 
       if (posicaoY > 270) {
         pdf.addPage();
@@ -386,36 +424,36 @@ function criarDataComHorario(horario: string) {
       }
     });
 
-    if (posicaoY > 230) {
-      pdf.addPage();
-      posicaoY = 30;
-    }
+    posicaoY += 8;
+  });
 
-    posicaoY += 20;
-
-    pdf.setFontSize(12);
-    pdf.text("Assinatura do responsável:", 20, posicaoY);
-    pdf.line(20, posicaoY + 25, 120, posicaoY + 25);
-
-    pdf.save(`relatorio-${tipo}-ponto.pdf`);
-
-    const nomeTipo =
-      tipo === "semanal" ? "semanal" : tipo === "mensal" ? "mensal" : "anual";
-
-    setToast(`Relatório ${nomeTipo} gerado com sucesso!`);
-
-    setTimeout(() => {
-      setToast("");
-    }, 3000);
+  if (posicaoY > 230) {
+    pdf.addPage();
+    posicaoY = 30;
   }
 
-  const mesAtual = mesSelecionado.getMonth();
-  const anoAtual = mesSelecionado.getFullYear();
+  posicaoY += 15;
 
-  const diasDoMes = Array.from(
-    { length: new Date(anoAtual, mesAtual + 1, 0).getDate() },
-    (_, i) => i + 1
-  );
+  pdf.setFontSize(12);
+  pdf.text("Assinatura do responsável:", 20, posicaoY);
+  pdf.line(20, posicaoY + 25, 120, posicaoY + 25);
+
+  pdf.save("relatorio-ponto.pdf");
+
+  setToast("Relatório gerado com sucesso!");
+
+  setTimeout(() => {
+    setToast("");
+  }, 3000);
+}
+
+const mesAtual = mesSelecionado.getMonth();
+const anoAtual = mesSelecionado.getFullYear();
+
+const diasDoMes = Array.from(
+  { length: new Date(anoAtual, mesAtual + 1, 0).getDate() },
+  (_, i) => i + 1
+);
 
   function nomeMesAtual() {
     return mesSelecionado.toLocaleDateString("pt-BR", {
@@ -443,18 +481,14 @@ function criarDataComHorario(horario: string) {
     );
   }
 
-  function selecionarTipoRelatorio(tipo: TipoRelatorio) {
-    setTipoRelatorio(tipo);
-    setMenuRelatorioAberto(false);
-  }
-
-  
   const termoBusca = filtroNome.trim().toLowerCase();
 
   const registrosFiltrados = registros
     .filter((registro) => {
       const nome = String(registro.academico?.nome || "").toLowerCase();
-      const matricula = String(registro.academico?.matricula || "").toLowerCase();
+      const matricula = String(
+        registro.academico?.matricula || ""
+      ).toLowerCase();
 
       const passouBusca =
         !termoBusca ||
@@ -502,17 +536,15 @@ function criarDataComHorario(horario: string) {
 
       <header className="bg-gradient-to-r from-blue-900 via-blue-700 to-sky-500 text-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-4">
-          <div className="flex items-center">
-  <div>
-    <p className="text-xs font-semibold uppercase tracking-widest">
-      Prefeitura do Rio · Subsecretaria de Gestão
-    </p>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest">
+              Prefeitura do Rio · Subsecretaria de Gestão
+            </p>
 
-    <h1 className="text-xl font-bold">
-      Ponto <span className="text-sky-300">Digital</span>
-    </h1>
-  </div>
-</div>
+            <h1 className="text-xl font-bold">
+              Ponto <span className="text-sky-300">Digital</span>
+            </h1>
+          </div>
 
           <p className="text-xl font-bold">
             {new Date().toLocaleTimeString("pt-BR", {
@@ -587,44 +619,44 @@ function criarDataComHorario(horario: string) {
                 />
               </div>
 
-               {!ehAdmin && (
-    <div className="grid grid-cols-2 gap-3">
-      <div>
-        <label className="text-sm font-semibold text-slate-600">
-          Horário de entrada
-        </label>
+              {!ehAdmin && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-semibold text-slate-600">
+                      Horário de entrada
+                    </label>
 
-        <input
-          type="time"
-          value={horarioEntrada}
-          onChange={(e) => setHorarioEntrada(e.target.value)}
-          className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:border-blue-500"
-        />
-      </div>
+                    <input
+                      type="time"
+                      value={horarioEntrada}
+                      onChange={(e) => setHorarioEntrada(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:border-blue-500"
+                    />
+                  </div>
 
-      <div>
-        <label className="text-sm font-semibold text-slate-600">
-          Horário de saída
-        </label>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-600">
+                      Horário de saída
+                    </label>
 
-        <input
-          type="time"
-          value={horarioSaida}
-          onChange={(e) => setHorarioSaida(e.target.value)}
-          className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:border-blue-500"
-        />
-      </div>
-    </div>
-  )}
+                    <input
+                      type="time"
+                      value={horarioSaida}
+                      onChange={(e) => setHorarioSaida(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              )}
 
-  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-    <input
-      type="checkbox"
-      checked={ehAdmin}
-      onChange={(e) => setEhAdmin(e.target.checked)}
-    />
-    Usuário administrador
-  </label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={ehAdmin}
+                  onChange={(e) => setEhAdmin(e.target.checked)}
+                />
+                Usuário administrador
+              </label>
 
               <button
                 onClick={cadastrarAcademico}
@@ -633,93 +665,40 @@ function criarDataComHorario(horario: string) {
                 Cadastrar Usuário
               </button>
 
-              <div className="relative">
-                <div className="flex overflow-hidden rounded-xl bg-green-600 text-white shadow-sm">
-                  <button
-                    onClick={() => gerarPdfRelatorio()}
-                    className="flex-1 p-3 font-bold transition hover:bg-green-700"
-                  >
-                    Gerar Relatório 
-                  </button>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-semibold text-slate-600">
+                    Data inicial
+                  </label>
 
-                  <button
-                    onClick={() =>
-                      setMenuRelatorioAberto(!menuRelatorioAberto)
-                    }
-                    className="border-l border-green-400 px-4 font-bold transition hover:bg-green-700"
-                  >
-                    ˅
-                  </button>
+                  <input
+                    type="date"
+                    value={dataInicial}
+                    onChange={(e) => setDataInicial(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:border-blue-500"
+                  />
                 </div>
 
-                {menuRelatorioAberto && (
-                  <div className="absolute left-0 z-20 mt-2 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-                    <p className="px-3 py-2 text-xs font-bold uppercase text-slate-500">
-                      Tipo de relatório
-                    </p>
+                <div>
+                  <label className="text-sm font-semibold text-slate-600">
+                    Data final
+                  </label>
 
-                    <button
-                      onClick={() => selecionarTipoRelatorio("semanal")}
-                      className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left hover:bg-slate-100"
-                    >
-                      <div className="flex gap-3">
-                        <span></span>
-
-                        <div>
-                          <p className="font-bold text-slate-800">Semanal</p>
-                          <p className="text-sm text-slate-500">
-                            Últimos 7 dias
-                          </p>
-                        </div>
-                      </div>
-
-                      {tipoRelatorio === "semanal" && (
-                        <span className="font-bold text-green-600">✓</span>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() => selecionarTipoRelatorio("mensal")}
-                      className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left hover:bg-slate-100"
-                    >
-                      <div className="flex gap-3">
-                        <span></span>
-
-                        <div>
-                          <p className="font-bold text-slate-800">Mensal</p>
-                          <p className="text-sm text-slate-500">
-                            Mês selecionado
-                          </p>
-                        </div>
-                      </div>
-
-                      {tipoRelatorio === "mensal" && (
-                        <span className="font-bold text-green-600">✓</span>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() => selecionarTipoRelatorio("anual")}
-                      className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left hover:bg-slate-100"
-                    >
-                      <div className="flex gap-3">
-                        <span></span>
-
-                        <div>
-                          <p className="font-bold text-slate-800">Anual</p>
-                          <p className="text-sm text-slate-500">
-                            Ano corrente, agrupado por mês
-                          </p>
-                        </div>
-                      </div>
-
-                      {tipoRelatorio === "anual" && (
-                        <span className="font-bold text-green-600">✓</span>
-                      )}
-                    </button>
-                  </div>
-                )}
+                  <input
+                    type="date"
+                    value={dataFinal}
+                    onChange={(e) => setDataFinal(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:border-blue-500"
+                  />
+                </div>
               </div>
+
+              <button
+                onClick={gerarPdfRelatorio}
+                className="rounded-xl bg-green-600 p-3 font-bold text-white transition hover:bg-green-700"
+              >
+                Gerar Relatório
+              </button>
             </div>
           </div>
 
@@ -791,18 +770,19 @@ function criarDataComHorario(horario: string) {
                       </p>
                     </div>
 
-{!academico.ehAdmin && (
-  <p className="text-xs text-slate-400">
-  Expediente: {academico.horarioEntrada} às {academico.horarioSaida}
-</p>
-)}
+                    {!academico.ehAdmin && (
+                      <p className="text-xs text-slate-400">
+                        Expediente: {academico.horarioEntrada} às{" "}
+                        {academico.horarioSaida}
+                      </p>
+                    )}
 
                     <button
-  onClick={() => excluirAcademico(academico.id)}
-  className="flex items-center justify-center rounded-xl p-2 text-red-500 transition hover:bg-red-100 hover:text-red-700"
->
-  <Trash2 size={18} strokeWidth={2.2} />
-</button>
+                      onClick={() => excluirAcademico(academico.id)}
+                      className="flex items-center justify-center rounded-xl p-2 text-red-500 transition hover:bg-red-100 hover:text-red-700"
+                    >
+                      <Trash2 size={18} strokeWidth={2.2} />
+                    </button>
                   </div>
                 );
               })}
@@ -817,8 +797,6 @@ function criarDataComHorario(horario: string) {
             </h2>
 
             <div className="relative w-full max-w-md">
-              
-
               <input
                 type="text"
                 placeholder="Buscar por nome ou matrícula"
@@ -903,7 +881,7 @@ function criarDataComHorario(horario: string) {
             {Object.entries(registrosAgrupadosPorDia).map(
               ([data, registrosDoGrupo]) => (
                 <div key={data}>
-                  <p className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+                  <p className="mb-4 text-sm font-extrabold uppercase tracking-wide text-blue-900">
                     {data}
                   </p>
 
@@ -911,28 +889,52 @@ function criarDataComHorario(horario: string) {
                     {registrosDoGrupo.map((registro) => (
                       <div
                         key={registro.id}
-                        className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4"
+                        className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4"
                       >
-                        <div>
-                          <p className="font-bold text-slate-900">
-                            {registro.academico?.nome ?? "Não informado"}
-                          </p>
+                        <div className="flex items-start justify-between gap-8">
+                          <div>
+                            <p className="text-lg font-bold text-slate-900">
+                              {registro.academico?.nome ?? "Não informado"}
+                            </p>
 
-                          <p className="text-sm text-slate-500">
-                            Matrícula:{" "}
-                            {registro.academico?.matricula ?? "Não informada"}
-                          </p>
-                        </div>
+                            <p className="text-sm text-slate-500">
+                              Matrícula:{" "}
+                              {registro.academico?.matricula ??
+                                "Não informada"}
+                            </p>
+                          </div>
 
-                        <div className="text-right">
-                          <p className="text-sm font-semibold text-slate-600">
-                            {formatarHora(registro.horaEntrada)} →{" "}
-                            {formatarHora(registro.horaSaida)}
-                          </p>
+                          <div className="flex gap-10 text-sm">
+                            <div>
+                              <p className="font-bold text-slate-700">
+                                Entrada
+                              </p>
 
-                          <span className="mt-1 inline-block rounded-full bg-blue-100 px-3 py-1 text-sm font-bold text-blue-700">
-                            {formatarTotal(registro.totalTrabalhado)}
-                          </span>
+                              <p className="mt-1 text-slate-900">
+                                {formatarHora(registro.horaEntrada)}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="font-bold text-slate-700">
+                                Saída
+                              </p>
+
+                              <p className="mt-1 text-slate-900">
+                                {formatarHora(registro.horaSaida)}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="font-bold text-slate-700">
+                                Total
+                              </p>
+
+                              <span className="mt-1 inline-block rounded-full bg-blue-100 px-3 py-1 font-bold text-blue-700">
+                                {formatarTotal(registro.totalTrabalhado)}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}

@@ -21,6 +21,9 @@ function AlunoDashboard() {
   const [registros, setRegistros] = useState<RegistroPonto[]>([]);
   const [horaAtual, setHoraAtual] = useState(new Date());
 
+  const [dataInicial, setDataInicial] = useState("");
+  const [dataFinal, setDataFinal] = useState("");
+
   useEffect(() => {
     const usuarioSalvo = localStorage.getItem("usuario");
 
@@ -99,147 +102,163 @@ function AlunoDashboard() {
   }
 
   function segundosDoRegistro(registro: RegistroPonto) {
-  if (!registro.totalTrabalhado) return 0;
+    if (!registro.totalTrabalhado) return 0;
 
-  const [horas, minutos, segundos] = registro.totalTrabalhado
-    .split(".")[0]
-    .split(":")
-    .map(Number);
+    const [horas, minutos, segundos] = registro.totalTrabalhado
+      .split(".")[0]
+      .split(":")
+      .map(Number);
 
-  return horas * 3600 + minutos * 60 + segundos;
-}
+    return horas * 3600 + minutos * 60 + segundos;
+  }
 
-function formatarSegundos(totalSegundos: number) {
-  const horas = Math.floor(totalSegundos / 3600);
-  const minutos = Math.floor((totalSegundos % 3600) / 60);
-  const segundos = totalSegundos % 60;
+  function formatarSegundos(totalSegundos: number) {
+    const horas = Math.floor(totalSegundos / 3600);
+    const minutos = Math.floor((totalSegundos % 3600) / 60);
+    const segundos = totalSegundos % 60;
 
-  return `${String(horas).padStart(2, "0")}:${String(minutos).padStart(
-    2,
-    "0"
-  )}:${String(segundos).padStart(2, "0")}`;
-}
+    return `${String(horas).padStart(2, "0")}:${String(minutos).padStart(
+      2,
+      "0"
+    )}:${String(segundos).padStart(2, "0")}`;
+  }
 
-function registrosDoMesAtual() {
-  const agora = new Date();
-  const mesAtual = agora.getMonth();
-  const anoAtual = agora.getFullYear();
+  function formatarDataInput(data: string) {
+    const [ano, mes, dia] = data.split("-").map(Number);
 
-  return registros.filter((registro) => {
-    const dataRegistro = new Date(registro.data);
+    return new Date(ano, mes - 1, dia).toLocaleDateString("pt-BR");
+  }
 
-    return (
-      dataRegistro.getMonth() === mesAtual &&
-      dataRegistro.getFullYear() === anoAtual
-    );
-  });
-}
+  function formatarDataRelatorio(data: string) {
+    const dataSemHora = data.split("T")[0];
+    const [ano, mes, dia] = dataSemHora.split("-").map(Number);
 
-function gerarRelatorioMensalIndividual() {
-  if (!usuario) return;
-
-  const registrosMes = registrosDoMesAtual();
-
-  const registrosOrdenados = [...registrosMes].sort(
-    (a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()
-  );
-
-  const totalSegundos = registrosMes.reduce(
-    (total, registro) => total + segundosDoRegistro(registro),
-    0
-  );
-
-  const pdf = new jsPDF();
-
-  pdf.setFontSize(18);
-  pdf.text("Relatório Mensal Individual de Ponto", 20, 20);
-
-  pdf.setFontSize(11);
-  pdf.text("Subsecretaria de Gestão - Prefeitura do Rio", 20, 30);
-  pdf.text(`Nome: ${usuario.nome}`, 20, 40);
-  pdf.text(`Matrícula: ${usuario.matricula}`, 20, 48);
-
-  pdf.text(
-    `Mês: ${new Date().toLocaleDateString("pt-BR", {
+    return new Date(ano, mes - 1, dia).toLocaleDateString("pt-BR", {
+      weekday: "long",
+      day: "2-digit",
       month: "long",
       year: "numeric",
-    })}`,
-    20,
-    56
-  );
-
-  pdf.text(`Total de registros: ${registrosMes.length}`, 20, 64);
-  pdf.text(`Total trabalhado: ${formatarSegundos(totalSegundos)}`, 20, 72);
-
-  let posicaoY = 90;
-
-  const registrosAgrupadosPorDia = registrosOrdenados.reduce(
-    (grupos: Record<string, RegistroPonto[]>, registro) => {
-      const dataFormatada = new Date(registro.data).toLocaleDateString(
-        "pt-BR",
-        {
-          weekday: "long",
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-        }
-      );
-
-      if (!grupos[dataFormatada]) {
-        grupos[dataFormatada] = [];
-      }
-
-      grupos[dataFormatada].push(registro);
-
-      return grupos;
-    },
-    {}
-  );
-
-  Object.entries(registrosAgrupadosPorDia).forEach(([data, registrosDoDia]) => {
-    pdf.setFontSize(12);
-    pdf.setFont("helvetica", "bold");
-    pdf.text(data.toUpperCase(), 20, posicaoY);
-
-    posicaoY += 10;
-
-    registrosDoDia.forEach((registro) => {
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "bold");
-
-      pdf.text("Entrada", 25, posicaoY);
-      pdf.text("Saída", 80, posicaoY);
-      pdf.text("Total", 135, posicaoY);
-
-      posicaoY += 7;
-
-      pdf.setFont("helvetica", "normal");
-
-      pdf.text(formatarHora(registro.horaEntrada), 25, posicaoY);
-
-      pdf.text(
-        registro.horaSaida
-          ? formatarHora(registro.horaSaida)
-          : "Não registrada",
-        80,
-        posicaoY
-      );
-
-      pdf.text(formatarTotal(registro.totalTrabalhado), 135, posicaoY);
-
-      posicaoY += 12;
-
-      if (posicaoY > 270) {
-        pdf.addPage();
-        posicaoY = 20;
-      }
     });
+  }
 
-    posicaoY += 8;
-  });
+  function gerarRelatorioIndividual() {
+    if (!usuario) return;
 
-  pdf.save(`relatorio-mensal-${usuario.nome}.pdf`);
-}
+    if (!dataInicial || !dataFinal) {
+      alert("Selecione o período do relatório.");
+      return;
+    }
+
+    const [anoInicio, mesInicio, diaInicio] = dataInicial
+      .split("-")
+      .map(Number);
+
+    const [anoFim, mesFim, diaFim] = dataFinal.split("-").map(Number);
+
+    const inicio = new Date(anoInicio, mesInicio - 1, diaInicio, 0, 0, 0, 0);
+    const fim = new Date(anoFim, mesFim - 1, diaFim, 23, 59, 59, 999);
+
+    const registrosPeriodo = registros
+      .filter((registro) => {
+        const dataRegistro = new Date(registro.data);
+
+        return dataRegistro >= inicio && dataRegistro <= fim;
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.data).getTime() - new Date(a.data).getTime()
+      );
+
+    if (registrosPeriodo.length === 0) {
+      alert("Nenhum registro encontrado nesse período.");
+      return;
+    }
+
+    const totalSegundos = registrosPeriodo.reduce(
+      (total, registro) => total + segundosDoRegistro(registro),
+      0
+    );
+
+    const registrosAgrupadosPorDia = registrosPeriodo.reduce(
+      (grupos: Record<string, RegistroPonto[]>, registro) => {
+        const dataFormatada = formatarDataRelatorio(registro.data);
+
+        if (!grupos[dataFormatada]) {
+          grupos[dataFormatada] = [];
+        }
+
+        grupos[dataFormatada].push(registro);
+
+        return grupos;
+      },
+      {}
+    );
+
+    const pdf = new jsPDF();
+
+    const periodo = `${formatarDataInput(dataInicial)} até ${formatarDataInput(
+      dataFinal
+    )}`;
+
+    pdf.setFontSize(18);
+    pdf.text("Relatório Individual de Ponto", 20, 20);
+
+    pdf.setFontSize(11);
+    pdf.text("Subsecretaria de Gestão - Prefeitura do Rio", 20, 30);
+    pdf.text(`Nome: ${usuario.nome}`, 20, 40);
+    pdf.text(`Matrícula: ${usuario.matricula}`, 20, 48);
+    pdf.text(`Período: ${periodo}`, 20, 56);
+    pdf.text(`Total de registros: ${registrosPeriodo.length}`, 20, 64);
+    pdf.text(`Total trabalhado: ${formatarSegundos(totalSegundos)}`, 20, 72);
+
+    let posicaoY = 90;
+
+    Object.entries(registrosAgrupadosPorDia).forEach(
+      ([data, registrosDoDia]) => {
+        pdf.setFontSize(12);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(data.toUpperCase(), 20, posicaoY);
+
+        posicaoY += 10;
+
+        registrosDoDia.forEach((registro) => {
+          pdf.setFontSize(10);
+          pdf.setFont("helvetica", "bold");
+
+          pdf.text("Entrada", 25, posicaoY);
+          pdf.text("Saída", 80, posicaoY);
+          pdf.text("Total", 135, posicaoY);
+
+          posicaoY += 7;
+
+          pdf.setFont("helvetica", "normal");
+
+          pdf.text(formatarHora(registro.horaEntrada), 25, posicaoY);
+
+          pdf.text(
+            registro.horaSaida
+              ? formatarHora(registro.horaSaida)
+              : "Não registrada",
+            80,
+            posicaoY
+          );
+
+          pdf.text(formatarTotal(registro.totalTrabalhado), 135, posicaoY);
+
+          posicaoY += 12;
+
+          if (posicaoY > 270) {
+            pdf.addPage();
+            posicaoY = 20;
+          }
+        });
+
+        posicaoY += 8;
+      }
+    );
+
+    pdf.save(`relatorio-${usuario.nome}.pdf`);
+  }
 
   const registrosHoje = registros.filter((registro) => {
     const dataRegistro = new Date(registro.data).toDateString();
@@ -297,23 +316,20 @@ function gerarRelatorioMensalIndividual() {
 
         <p className="mt-3 text-xl text-slate-500">
           Bem-vindo(a),{" "}
-          <strong className="text-slate-900">{usuario?.nome}</strong>.
-          Pronto para registrar seu ponto?
+          <strong className="text-slate-900">{usuario?.nome}</strong>. Pronto
+          para registrar seu ponto?
         </p>
 
         <section className="mt-8 rounded-3xl bg-white p-8 shadow-sm">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-6">
+            <div>
+              <p className="text-sm font-bold uppercase text-slate-500">
+                Hora atual
+              </p>
 
-              <div>
-                <p className="text-sm font-bold uppercase text-slate-500">
-                  Hora atual
-                </p>
-
-                <p className="text-4xl font-semibold text-slate-900">
-                  {horaAtual.toLocaleTimeString("pt-BR")}
-                </p>
-              </div>
+              <p className="text-4xl font-semibold text-slate-900">
+                {horaAtual.toLocaleTimeString("pt-BR")}
+              </p>
             </div>
 
             <div className="flex flex-col gap-4 sm:flex-row">
@@ -321,14 +337,14 @@ function gerarRelatorioMensalIndividual() {
                 onClick={registrarEntrada}
                 className="rounded-2xl bg-green-600 px-8 py-4 text-lg font-bold text-white shadow-lg transition hover:bg-green-700"
               >
-                 Registrar Entrada
+                Registrar Entrada
               </button>
 
               <button
                 onClick={registrarSaida}
                 className="rounded-2xl bg-red-600 px-8 py-4 text-lg font-bold text-white shadow-lg transition hover:bg-red-700"
               >
-                 Registrar Saída
+                Registrar Saída
               </button>
             </div>
           </div>
@@ -336,21 +352,21 @@ function gerarRelatorioMensalIndividual() {
 
         <section className="mt-8 grid gap-6 lg:grid-cols-3">
           <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <p className="text-lg text-slate-500"> Registros hoje</p>
+            <p className="text-lg text-slate-500">Registros hoje</p>
             <h2 className="mt-4 text-3xl font-semibold">
               {registrosHoje.length}
             </h2>
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <p className="text-lg text-slate-500"> Total no mês</p>
+            <p className="text-lg text-slate-500">Total de registros</p>
             <h2 className="mt-4 text-3xl font-extrabold">
               {registros.length}
             </h2>
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <p className="text-lg text-slate-500"> Status</p>
+            <p className="text-lg text-slate-500">Status</p>
             <h2
               className={`mt-4 text-3xl font-extrabold ${
                 entradaAberta ? "text-green-600" : "text-red-600"
@@ -367,18 +383,12 @@ function gerarRelatorioMensalIndividual() {
               Histórico recente
             </h2>
 
-            <p className="text-slate-500">
-              {registros.length} registro(s)
-            </p>
+            <p className="text-slate-500">{registros.length} registro(s)</p>
           </div>
 
           <div className="mt-6 space-y-4">
             {registros.length === 0 && (
               <div className="rounded-3xl border border-dashed border-slate-300 p-12 text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-3xl">
-            
-                </div>
-
                 <h3 className="mt-5 text-xl font-bold">
                   Nenhum registro ainda
                 </h3>
@@ -389,24 +399,18 @@ function gerarRelatorioMensalIndividual() {
               </div>
             )}
 
-          {registros.map((registro) => (
-  <div
-    key={registro.id}
-    className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
-  >
-    <p className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
-      {new Date(registro.data).toLocaleDateString("pt-BR", {
-        weekday: "long",
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      })}
-    </p>
+            {registros.map((registro) => (
+              <div
+                key={registro.id}
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+              >
+                <p className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+                  {formatarDataRelatorio(registro.data)}
+                </p>
 
-    <p>
-      <strong>Entrada:</strong>{" "}
-      {formatarHora(registro.horaEntrada)}
-    </p>
+                <p>
+                  <strong>Entrada:</strong> {formatarHora(registro.horaEntrada)}
+                </p>
 
                 <p>
                   <strong>Saída:</strong>{" "}
@@ -424,23 +428,50 @@ function gerarRelatorioMensalIndividual() {
           </div>
         </section>
 
-<section className="mt-8 rounded-3xl bg-white p-8 shadow-sm">
-  <h2 className="text-2xl font-bold text-slate-900">
-    Relatório mensal individual
-  </h2>
+        <section className="mt-8 rounded-3xl bg-white p-8 shadow-sm">
+          <h2 className="text-2xl font-bold text-slate-900">
+            Relatório individual
+          </h2>
 
-  <p className="mt-2 text-slate-500">
-   Consulte seus registros de horas trabalhadas no mês
-  </p>
+          <p className="mt-2 text-slate-500">
+            Consulte seus registros de horas trabalhadas por período.
+          </p>
 
-  <button
-    onClick={gerarRelatorioMensalIndividual}
-    className="mt-6 rounded-2xl bg-blue-700 px-8 py-4 text-lg font-bold text-white shadow-lg transition hover:bg-blue-800"
-  >
-    Gerar meu relatório mensal
-  </button>
-</section>
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="text-sm font-semibold text-slate-600">
+                Data inicial
+              </label>
 
+              <input
+                type="date"
+                value={dataInicial}
+                onChange={(e) => setDataInicial(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold text-slate-600">
+                Data final
+              </label>
+
+              <input
+                type="date"
+                value={dataFinal}
+                onChange={(e) => setDataFinal(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={gerarRelatorioIndividual}
+            className="mt-6 rounded-2xl bg-blue-700 px-8 py-4 text-lg font-bold text-white shadow-lg transition hover:bg-blue-800"
+          >
+            Gerar relatório
+          </button>
+        </section>
       </main>
     </div>
   );
