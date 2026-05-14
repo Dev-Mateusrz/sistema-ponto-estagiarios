@@ -9,6 +9,9 @@ type Academico = {
   email: string;
   senha: string;
   ehAdmin: boolean;
+
+  horarioEntrada: string;
+  horarioSaida: string;
 };
 
 type RegistroPonto = {
@@ -40,6 +43,9 @@ function AdminDashboard() {
   const [senha, setSenha] = useState("");
   const [ehAdmin, setEhAdmin] = useState(false);
 
+const [horarioEntrada, setHorarioEntrada] = useState("");
+const [horarioSaida, setHorarioSaida] = useState("");
+
   const [filtroNome, setFiltroNome] = useState("");
   const [diaSelecionado, setDiaSelecionado] = useState<number | null>(null);
   const [mesSelecionado, setMesSelecionado] = useState(new Date());
@@ -67,35 +73,46 @@ function AdminDashboard() {
   }, []);
 
   async function cadastrarAcademico() {
-    const resposta = await fetch("http://localhost:5294/academicos", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        matricula,
-        nome,
-        email,
-        senha,
-        ehAdmin,
-      }),
-    });
 
-    if (resposta.ok) {
-      alert("Usuário cadastrado!");
-
-      setMatricula("");
-      setNome("");
-      setEmail("");
-      setSenha("");
-      setEhAdmin(false);
-
-      carregarAcademicos();
-    } else {
-      const erro = await resposta.text();
-      alert(erro || "Erro ao cadastrar.");
-    }
+  if (!ehAdmin && (!horarioEntrada || !horarioSaida)) {
+    alert("Informe os horários do acadêmico.");
+    return;
   }
+
+  const resposta = await fetch("http://localhost:5294/academicos", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      matricula,
+      nome,
+      email,
+      senha,
+      ehAdmin,
+      horarioEntrada,
+      horarioSaida,
+    }),
+  });
+
+  if (resposta.ok) {
+    alert("Usuário cadastrado!");
+
+    setMatricula("");
+    setNome("");
+    setEmail("");
+    setSenha("");
+    setEhAdmin(false);
+
+    setHorarioEntrada("");
+    setHorarioSaida("");
+
+    carregarAcademicos();
+  } else {
+    const erro = await resposta.text();
+    alert(erro || "Erro ao cadastrar.");
+  }
+}
 
   async function excluirAcademico(id: number) {
     const confirmar = confirm("Tem certeza que deseja excluir este usuário?");
@@ -157,60 +174,92 @@ function AdminDashboard() {
     return ano;
   }
 
+function criarDataComHorario(horario: string) {
+  const [hora, minuto] = horario.split(":").map(Number);
+
+  const data = new Date();
+
+  data.setHours(hora, minuto, 0, 0);
+
+  return data;
+}
+
   function pegarStatus(academico: Academico): StatusAcademico | null {
-    if (academico.ehAdmin) return null;
+  if (academico.ehAdmin) return null;
 
-    const agora = new Date();
-    const hoje = agora.toDateString();
+  const agora = new Date();
+  const hoje = agora.toDateString();
 
-    const registrosHoje = registros.filter((registro) => {
-      const dataRegistro = new Date(registro.data).toDateString();
+  const registrosHoje = registros.filter((registro) => {
+    const dataRegistro = new Date(registro.data).toDateString();
 
-      return (
-        registro.academico?.email === academico.email &&
-        dataRegistro === hoje
-      );
-    });
-
-    const limiteAtraso = new Date();
-    limiteAtraso.setHours(9, 0, 0, 0);
-
-    const limiteFalta = new Date();
-    limiteFalta.setHours(13, 0, 0, 0);
-
-    if (registrosHoje.length === 0) {
-      if (agora >= limiteAtraso && agora < limiteFalta) {
-        return { texto: "Atrasado" };
-      }
-
-      if (agora >= limiteFalta) {
-        return { texto: "Faltou" };
-      }
-
-      return { texto: "Ainda não chegou" };
-    }
-
-    const temEntradaAberta = registrosHoje.some(
-      (registro) => registro.horaSaida === null
+    return (
+      registro.academico?.email === academico.email &&
+      dataRegistro === hoje
     );
+  });
 
-    const primeiroRegistro = registrosHoje[0];
-    const horaEntrada = new Date(primeiroRegistro.horaEntrada);
+  const limiteAtraso = criarDataComHorario(
+    academico.horarioEntrada
+  );
 
-    if (horaEntrada > limiteAtraso) {
-      if (temEntradaAberta) {
-        return { texto: "Em expediente • Chegou com atraso" };
-      }
+  const limiteFalta = criarDataComHorario(
+    academico.horarioSaida
+  );
 
-      return { texto: "Chegou com atraso" };
+  const toleranciaMinutos = 10;
+
+  limiteAtraso.setMinutes(
+    limiteAtraso.getMinutes() + toleranciaMinutos
+  );
+
+  if (registrosHoje.length === 0) {
+    if (agora >= limiteAtraso && agora < limiteFalta) {
+      return {
+        texto: `Atrasado • Entrada prevista: ${academico.horarioEntrada}`,
+      };
     }
 
-    if (temEntradaAberta) {
-      return { texto: "Em expediente" };
+    if (agora >= limiteFalta) {
+      return {
+        texto: `Faltou • Expediente encerrado às ${academico.horarioSaida}`,
+      };
     }
 
-    return { texto: "Fora" };
+    return {
+      texto: `Ainda não chegou • Entrada às ${academico.horarioEntrada}`,
+    };
   }
+
+  const temEntradaAberta = registrosHoje.some(
+    (registro) => registro.horaSaida === null
+  );
+
+  const primeiroRegistro = registrosHoje[0];
+  const horaEntrada = new Date(primeiroRegistro.horaEntrada);
+
+  if (horaEntrada > limiteAtraso) {
+    if (temEntradaAberta) {
+      return {
+        texto: `Em expediente • Chegou com atraso`,
+      };
+    }
+
+    return {
+      texto: `Chegou com atraso`,
+    };
+  }
+
+  if (temEntradaAberta) {
+    return {
+      texto: `Em expediente até ${academico.horarioSaida}`,
+    };
+  }
+
+  return {
+    texto: "Fora",
+  };
+}
 
   function segundosDoRegistro(registro: RegistroPonto) {
     if (!registro.totalTrabalhado) return 0;
@@ -460,7 +509,7 @@ function AdminDashboard() {
     </p>
 
     <h1 className="text-xl font-bold">
-      Ponto <span className="text-orange-400">Digital</span>
+      Ponto <span className="text-sky-300">Digital</span>
     </h1>
   </div>
 </div>
@@ -538,14 +587,44 @@ function AdminDashboard() {
                 />
               </div>
 
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={ehAdmin}
-                  onChange={(e) => setEhAdmin(e.target.checked)}
-                />
-                Usuário administrador
-              </label>
+               {!ehAdmin && (
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <label className="text-sm font-semibold text-slate-600">
+          Horário de entrada
+        </label>
+
+        <input
+          type="time"
+          value={horarioEntrada}
+          onChange={(e) => setHorarioEntrada(e.target.value)}
+          className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:border-blue-500"
+        />
+      </div>
+
+      <div>
+        <label className="text-sm font-semibold text-slate-600">
+          Horário de saída
+        </label>
+
+        <input
+          type="time"
+          value={horarioSaida}
+          onChange={(e) => setHorarioSaida(e.target.value)}
+          className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:border-blue-500"
+        />
+      </div>
+    </div>
+  )}
+
+  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+    <input
+      type="checkbox"
+      checked={ehAdmin}
+      onChange={(e) => setEhAdmin(e.target.checked)}
+    />
+    Usuário administrador
+  </label>
 
               <button
                 onClick={cadastrarAcademico}
@@ -712,6 +791,12 @@ function AdminDashboard() {
                       </p>
                     </div>
 
+{!academico.ehAdmin && (
+  <p className="text-xs text-slate-400">
+  Expediente: {academico.horarioEntrada} às {academico.horarioSaida}
+</p>
+)}
+
                     <button
   onClick={() => excluirAcademico(academico.id)}
   className="flex items-center justify-center rounded-xl p-2 text-red-500 transition hover:bg-red-100 hover:text-red-700"
@@ -732,16 +817,14 @@ function AdminDashboard() {
             </h2>
 
             <div className="relative w-full max-w-md">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                🔍
-              </span>
+              
 
               <input
                 type="text"
                 placeholder="Buscar por nome ou matrícula"
                 value={filtroNome}
                 onChange={(e) => setFiltroNome(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-11 py-3 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
 
               {filtroNome && (
@@ -758,7 +841,7 @@ function AdminDashboard() {
           <div className="mt-6">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-bold uppercase tracking-wide text-slate-500">
-                Filtrar por dia · {nomeMesAtual()}
+                {nomeMesAtual()}
               </p>
 
               <div className="flex gap-2">

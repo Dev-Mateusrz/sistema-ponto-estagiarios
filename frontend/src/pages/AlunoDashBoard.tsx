@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import jsPDF from "jspdf";
 
 type Usuario = {
   id: number;
@@ -97,6 +98,149 @@ function AlunoDashboard() {
     return total.split(".")[0];
   }
 
+  function segundosDoRegistro(registro: RegistroPonto) {
+  if (!registro.totalTrabalhado) return 0;
+
+  const [horas, minutos, segundos] = registro.totalTrabalhado
+    .split(".")[0]
+    .split(":")
+    .map(Number);
+
+  return horas * 3600 + minutos * 60 + segundos;
+}
+
+function formatarSegundos(totalSegundos: number) {
+  const horas = Math.floor(totalSegundos / 3600);
+  const minutos = Math.floor((totalSegundos % 3600) / 60);
+  const segundos = totalSegundos % 60;
+
+  return `${String(horas).padStart(2, "0")}:${String(minutos).padStart(
+    2,
+    "0"
+  )}:${String(segundos).padStart(2, "0")}`;
+}
+
+function registrosDoMesAtual() {
+  const agora = new Date();
+  const mesAtual = agora.getMonth();
+  const anoAtual = agora.getFullYear();
+
+  return registros.filter((registro) => {
+    const dataRegistro = new Date(registro.data);
+
+    return (
+      dataRegistro.getMonth() === mesAtual &&
+      dataRegistro.getFullYear() === anoAtual
+    );
+  });
+}
+
+function gerarRelatorioMensalIndividual() {
+  if (!usuario) return;
+
+  const registrosMes = registrosDoMesAtual();
+
+  const registrosOrdenados = [...registrosMes].sort(
+    (a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()
+  );
+
+  const totalSegundos = registrosMes.reduce(
+    (total, registro) => total + segundosDoRegistro(registro),
+    0
+  );
+
+  const pdf = new jsPDF();
+
+  pdf.setFontSize(18);
+  pdf.text("Relatório Mensal Individual de Ponto", 20, 20);
+
+  pdf.setFontSize(11);
+  pdf.text("Subsecretaria de Gestão - Prefeitura do Rio", 20, 30);
+  pdf.text(`Nome: ${usuario.nome}`, 20, 40);
+  pdf.text(`Matrícula: ${usuario.matricula}`, 20, 48);
+
+  pdf.text(
+    `Mês: ${new Date().toLocaleDateString("pt-BR", {
+      month: "long",
+      year: "numeric",
+    })}`,
+    20,
+    56
+  );
+
+  pdf.text(`Total de registros: ${registrosMes.length}`, 20, 64);
+  pdf.text(`Total trabalhado: ${formatarSegundos(totalSegundos)}`, 20, 72);
+
+  let posicaoY = 90;
+
+  const registrosAgrupadosPorDia = registrosOrdenados.reduce(
+    (grupos: Record<string, RegistroPonto[]>, registro) => {
+      const dataFormatada = new Date(registro.data).toLocaleDateString(
+        "pt-BR",
+        {
+          weekday: "long",
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        }
+      );
+
+      if (!grupos[dataFormatada]) {
+        grupos[dataFormatada] = [];
+      }
+
+      grupos[dataFormatada].push(registro);
+
+      return grupos;
+    },
+    {}
+  );
+
+  Object.entries(registrosAgrupadosPorDia).forEach(([data, registrosDoDia]) => {
+    pdf.setFontSize(12);
+    pdf.setFont("helvetica", "bold");
+    pdf.text(data.toUpperCase(), 20, posicaoY);
+
+    posicaoY += 10;
+
+    registrosDoDia.forEach((registro) => {
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "bold");
+
+      pdf.text("Entrada", 25, posicaoY);
+      pdf.text("Saída", 80, posicaoY);
+      pdf.text("Total", 135, posicaoY);
+
+      posicaoY += 7;
+
+      pdf.setFont("helvetica", "normal");
+
+      pdf.text(formatarHora(registro.horaEntrada), 25, posicaoY);
+
+      pdf.text(
+        registro.horaSaida
+          ? formatarHora(registro.horaSaida)
+          : "Não registrada",
+        80,
+        posicaoY
+      );
+
+      pdf.text(formatarTotal(registro.totalTrabalhado), 135, posicaoY);
+
+      posicaoY += 12;
+
+      if (posicaoY > 270) {
+        pdf.addPage();
+        posicaoY = 20;
+      }
+    });
+
+    posicaoY += 8;
+  });
+
+  pdf.save(`relatorio-mensal-${usuario.nome}.pdf`);
+}
+
   const registrosHoje = registros.filter((registro) => {
     const dataRegistro = new Date(registro.data).toDateString();
     const hoje = new Date().toDateString();
@@ -123,7 +267,7 @@ function AlunoDashboard() {
               </p>
 
               <h1 className="text-xl font-bold">
-                Ponto <span className="text-orange-400">Digital</span>
+                Ponto <span className="text-sky-300">Digital</span>
               </h1>
             </div>
           </div>
@@ -160,16 +304,13 @@ function AlunoDashboard() {
         <section className="mt-8 rounded-3xl bg-white p-8 shadow-sm">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-6">
-              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-blue-100 text-4xl text-blue-700">
-                🕒
-              </div>
 
               <div>
                 <p className="text-sm font-bold uppercase text-slate-500">
                   Hora atual
                 </p>
 
-                <p className="text-5xl font-extrabold text-slate-950">
+                <p className="text-4xl font-semibold text-slate-900">
                   {horaAtual.toLocaleTimeString("pt-BR")}
                 </p>
               </div>
@@ -196,7 +337,7 @@ function AlunoDashboard() {
         <section className="mt-8 grid gap-6 lg:grid-cols-3">
           <div className="rounded-3xl bg-white p-6 shadow-sm">
             <p className="text-lg text-slate-500"> Registros hoje</p>
-            <h2 className="mt-4 text-3xl font-extrabold">
+            <h2 className="mt-4 text-3xl font-semibold">
               {registrosHoje.length}
             </h2>
           </div>
@@ -248,15 +389,24 @@ function AlunoDashboard() {
               </div>
             )}
 
-            {registros.map((registro) => (
-              <div
-                key={registro.id}
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
-              >
-                <p>
-                  <strong>Entrada:</strong>{" "}
-                  {formatarHora(registro.horaEntrada)}
-                </p>
+          {registros.map((registro) => (
+  <div
+    key={registro.id}
+    className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+  >
+    <p className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+      {new Date(registro.data).toLocaleDateString("pt-BR", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      })}
+    </p>
+
+    <p>
+      <strong>Entrada:</strong>{" "}
+      {formatarHora(registro.horaEntrada)}
+    </p>
 
                 <p>
                   <strong>Saída:</strong>{" "}
@@ -273,6 +423,24 @@ function AlunoDashboard() {
             ))}
           </div>
         </section>
+
+<section className="mt-8 rounded-3xl bg-white p-8 shadow-sm">
+  <h2 className="text-2xl font-bold text-slate-900">
+    Relatório mensal individual
+  </h2>
+
+  <p className="mt-2 text-slate-500">
+   Consulte seus registros de horas trabalhadas no mês
+  </p>
+
+  <button
+    onClick={gerarRelatorioMensalIndividual}
+    className="mt-6 rounded-2xl bg-blue-700 px-8 py-4 text-lg font-bold text-white shadow-lg transition hover:bg-blue-800"
+  >
+    Gerar meu relatório mensal
+  </button>
+</section>
+
       </main>
     </div>
   );

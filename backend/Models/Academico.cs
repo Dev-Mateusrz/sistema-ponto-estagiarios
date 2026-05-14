@@ -15,6 +15,9 @@ public class Academico
 
     public bool EhAdmin { get; set; } = false;
 
+    public string HorarioEntrada { get; set; } = string.Empty;
+
+    public string HorarioSaida { get; set; } = string.Empty;
+
     public bool Ativo { get; set; } = true;
 }
-
