@@ -19,7 +19,20 @@ public class AcademicosController : ControllerBase
     [HttpGet]
     public IActionResult Get()
     {
-        var academicos = _context.Academicos.ToList();
+        var academicos = _context.Academicos
+            .Where(a => a.Ativo)
+            .Select(a => new
+            {
+                a.Id,
+                a.Matricula,
+                a.Nome,
+                a.Email,
+                a.EhAdmin,
+                a.HorarioEntrada,
+                a.HorarioSaida,
+                a.Ativo
+            })
+            .ToList();
 
         return Ok(academicos);
     }
@@ -53,14 +66,20 @@ public class AcademicosController : ControllerBase
             return BadRequest("A senha é obrigatória.");
         }
 
-        var emailJaExiste = _context.Academicos.Any(a => a.Email == academico.Email);
+        var emailJaExiste = _context.Academicos.Any(a =>
+            a.Ativo &&
+            a.Email == academico.Email
+        );
 
         if (emailJaExiste)
         {
             return BadRequest("Já existe um usuário cadastrado com este email.");
         }
 
-        var matriculaJaExiste = _context.Academicos.Any(a => a.Matricula == academico.Matricula);
+        var matriculaJaExiste = _context.Academicos.Any(a =>
+            a.Ativo &&
+            a.Matricula == academico.Matricula
+        );
 
         if (matriculaJaExiste)
         {
@@ -70,7 +89,17 @@ public class AcademicosController : ControllerBase
         _context.Academicos.Add(academico);
         _context.SaveChanges();
 
-        return Created("", academico);
+        return Created("", new
+        {
+            academico.Id,
+            academico.Matricula,
+            academico.Nome,
+            academico.Email,
+            academico.EhAdmin,
+            academico.HorarioEntrada,
+            academico.HorarioSaida,
+            academico.Ativo
+        });
     }
 
     // Realiza o login dos acadêmicos e administradores
@@ -78,16 +107,27 @@ public class AcademicosController : ControllerBase
     public IActionResult Login(Academico dadosLogin)
     {
         var academico = _context.Academicos.FirstOrDefault(a =>
+            a.Ativo &&
             a.Email == dadosLogin.Email &&
             a.Senha == dadosLogin.Senha
         );
 
-        if (academico == null)
+        if (academico == null || !academico.Ativo)
         {
             return Unauthorized("Email ou senha inválidos.");
         }
 
-        return Ok(academico);
+        return Ok(new
+        {
+            academico.Id,
+            academico.Matricula,
+            academico.Nome,
+            academico.Email,
+            academico.EhAdmin,
+            academico.HorarioEntrada,
+            academico.HorarioSaida,
+            academico.Ativo
+        });
     }
 
     // Exclui um acadêmico ou administrador pelo ID
@@ -96,12 +136,12 @@ public class AcademicosController : ControllerBase
     {
         var academico = _context.Academicos.Find(id);
 
-        if (academico == null)
+        if (academico == null || !academico.Ativo)
         {
             return NotFound("Acadêmico não encontrado.");
         }
 
-        _context.Academicos.Remove(academico);
+        academico.Ativo = false;
         _context.SaveChanges();
 
         return NoContent();

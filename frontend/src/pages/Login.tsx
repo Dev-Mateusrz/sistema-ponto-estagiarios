@@ -4,8 +4,6 @@ import { useNavigate } from "react-router-dom";
 function Login() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
-  const [mostrarSenha, setMostrarSenha] = useState(false);
-  const [manterConectado, setManterConectado] = useState(false);
 
   const navigate = useNavigate();
 
@@ -100,8 +98,6 @@ function Login() {
               </label>
 
               <div className="flex items-center rounded-2xl border border-slate-300 bg-white px-5 py-4 shadow-sm">
-                <span className="mr-4 text-slate-500"></span>
-
                 <input
                   type="email"
                   placeholder=""
@@ -118,44 +114,19 @@ function Login() {
                   Senha
                 </label>
 
-                <button
-                  type="button"
-                  className="text-sm font-semibold text-sky-600"
-                >
-                  
-                </button>
               </div>
 
               <div className="flex items-center rounded-2xl border border-slate-300 bg-white px-5 py-4 shadow-sm">
-                <span className="mr-4 text-slate-500"></span>
-
                 <input
-                  type={mostrarSenha ? "text" : "password"}
+                  type="password"
                   placeholder=""
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
                   className="w-full bg-transparent text-lg outline-none placeholder:text-slate-400"
                 />
 
-                <button
-                  type="button"
-                  onClick={() => setMostrarSenha(!mostrarSenha)}
-                  className="ml-4 text-slate-500"
-                >
-                  
-                </button>
               </div>
             </div>
-
-            <label className="flex items-center gap-3 text-slate-600">
-              <input
-                type="checkbox"
-                checked={manterConectado}
-                onChange={(e) => setManterConectado(e.target.checked)}
-                className="h-5 w-5 rounded border-slate-300"
-              />
-              Manter conectado neste dispositivo
-            </label>
 
             <button
               onClick={fazerLogin}

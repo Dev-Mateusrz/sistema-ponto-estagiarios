@@ -5,7 +5,7 @@ import {
 } from "react-router-dom";
 
 import Login from "./pages/Login";
-import AlunoDashboard from "./pages/AlunoDashBoard";
+import AcademicoDashboard from "./pages/AcademicoDashboard";
 import AdminDashboard from "./pages/AdminDashBoard";
 
 
@@ -17,7 +17,7 @@ function App() {
 
         <Route
           path="/aluno"
-          element={<AlunoDashboard />}
+          element={<AcademicoDashboard />}
         />
 
         <Route

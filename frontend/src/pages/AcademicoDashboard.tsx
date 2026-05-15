@@ -10,13 +10,14 @@ type Usuario = {
 
 type RegistroPonto = {
   id: number;
+  academicoId: number;
   data: string;
   horaEntrada: string;
   horaSaida: string | null;
   totalTrabalhado: string | null;
 };
 
-function AlunoDashboard() {
+function AcademicoDashboard() {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [registros, setRegistros] = useState<RegistroPonto[]>([]);
   const [horaAtual, setHoraAtual] = useState(new Date());
@@ -45,7 +46,7 @@ function AlunoDashboard() {
       .then((res) => res.json())
       .then((dados) => {
         const registrosDoUsuario = dados.filter(
-          (registro: any) => registro.academicoId === academicoId
+          (registro: RegistroPonto) => registro.academicoId === academicoId
         );
 
         setRegistros(registrosDoUsuario);
@@ -141,12 +142,93 @@ function AlunoDashboard() {
     });
   }
 
-  function gerarRelatorioIndividual() {
+  async function gerarRelatorioIndividual() {
     if (!usuario) return;
 
+    const usuarioAtual = usuario;
+
     if (!dataInicial || !dataFinal) {
-      alert("Selecione o período do relatório.");
+      alert("Selecione o periodo do relatorio.");
       return;
+    }
+
+    async function carregarImagemRelatorio() {
+      const resposta = await fetch("/logo-relatorio-subg.png");
+      const blob = await resposta.blob();
+
+      return await new Promise<string>((resolve, reject) => {
+        const leitor = new FileReader();
+        leitor.onloadend = () => resolve(String(leitor.result));
+        leitor.onerror = reject;
+        leitor.readAsDataURL(blob);
+      });
+    }
+
+    function desenharCabecalho(pdf: jsPDF, logoRelatorio?: string) {
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, 210, 297, "F");
+
+      pdf.setFillColor(15, 76, 117);
+      pdf.rect(0, 0, 210, 7, "F");
+
+      if (logoRelatorio) {
+        pdf.addImage(logoRelatorio, "PNG", 18, 14, 28, 28);
+      } else {
+        pdf.setFillColor(15, 76, 117);
+        pdf.circle(32, 28, 14, "F");
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(13);
+        pdf.setTextColor(255, 255, 255);
+        pdf.text("SUBG", 32, 31, { align: "center" });
+      }
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(15, 23, 42);
+      pdf.setFontSize(8);
+      pdf.text("PREFEITURA DA CIDADE DO", 52, 22);
+
+      pdf.setFontSize(13);
+      pdf.text("RIO DE JANEIRO", 52, 29);
+
+      pdf.setFontSize(10);
+      pdf.text("SECRETARIA MUNICIPAL DE SAUDE", 52, 36);
+
+      pdf.setDrawColor(226, 232, 240);
+      pdf.line(20, 48, 190, 48);
+    }
+
+    function desenharTitulo(pdf: jsPDF, periodo: string, totalSegundos: number) {
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(18);
+      pdf.setTextColor(15, 23, 42);
+      pdf.text("Relatorio Individual de Ponto", 20, 63);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(71, 85, 105);
+      pdf.text(`Nome: ${usuarioAtual.nome}`, 20, 71);
+      pdf.text(`Matricula: ${usuarioAtual.matricula}`, 20, 78);
+      pdf.text(`Periodo: ${periodo}`, 20, 85);
+      pdf.text(`Total trabalhado: ${formatarSegundos(totalSegundos)}`, 20, 92);
+    }
+
+    function desenharCabecalhoTabela(pdf: jsPDF, posicaoY: number) {
+      pdf.setFillColor(15, 76, 117);
+      pdf.roundedRect(20, posicaoY, 170, 10, 2, 2, "F");
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(9);
+      pdf.setTextColor(255, 255, 255);
+      pdf.text("Data", 24, posicaoY + 6.5);
+      pdf.text("Entrada", 78, posicaoY + 6.5);
+      pdf.text("Saida", 116, posicaoY + 6.5);
+      pdf.text("Total", 152, posicaoY + 6.5);
+    }
+
+    function formatarDataTabela(data: string) {
+      const dataSemHora = data.split("T")[0];
+      const [ano, mes, dia] = dataSemHora.split("-").map(Number);
+      return new Date(ano, mes - 1, dia).toLocaleDateString("pt-BR");
     }
 
     const [anoInicio, mesInicio, diaInicio] = dataInicial
@@ -158,6 +240,11 @@ function AlunoDashboard() {
     const inicio = new Date(anoInicio, mesInicio - 1, diaInicio, 0, 0, 0, 0);
     const fim = new Date(anoFim, mesFim - 1, diaFim, 23, 59, 59, 999);
 
+    if (inicio >= fim) {
+      alert("A data inicial deve ser menor que a data final.");
+      return;
+    }
+
     const registrosPeriodo = registros
       .filter((registro) => {
         const dataRegistro = new Date(registro.data);
@@ -166,11 +253,12 @@ function AlunoDashboard() {
       })
       .sort(
         (a, b) =>
-          new Date(b.data).getTime() - new Date(a.data).getTime()
+          new Date(a.horaEntrada).getTime() -
+          new Date(b.horaEntrada).getTime()
       );
 
     if (registrosPeriodo.length === 0) {
-      alert("Nenhum registro encontrado nesse período.");
+      alert("Nenhum registro encontrado nesse periodo.");
       return;
     }
 
@@ -179,87 +267,57 @@ function AlunoDashboard() {
       0
     );
 
-    const registrosAgrupadosPorDia = registrosPeriodo.reduce(
-      (grupos: Record<string, RegistroPonto[]>, registro) => {
-        const dataFormatada = formatarDataRelatorio(registro.data);
-
-        if (!grupos[dataFormatada]) {
-          grupos[dataFormatada] = [];
-        }
-
-        grupos[dataFormatada].push(registro);
-
-        return grupos;
-      },
-      {}
-    );
-
     const pdf = new jsPDF();
+    let logoRelatorio: string | undefined;
 
-    const periodo = `${formatarDataInput(dataInicial)} até ${formatarDataInput(
+    try {
+      logoRelatorio = await carregarImagemRelatorio();
+    } catch {
+      logoRelatorio = undefined;
+    }
+
+    const periodo = `${formatarDataInput(dataInicial)} ate ${formatarDataInput(
       dataFinal
     )}`;
 
-    pdf.setFontSize(18);
-    pdf.text("Relatório Individual de Ponto", 20, 20);
+    desenharCabecalho(pdf, logoRelatorio);
+    desenharTitulo(pdf, periodo, totalSegundos);
 
-    pdf.setFontSize(11);
-    pdf.text("Subsecretaria de Gestão - Prefeitura do Rio", 20, 30);
-    pdf.text(`Nome: ${usuario.nome}`, 20, 40);
-    pdf.text(`Matrícula: ${usuario.matricula}`, 20, 48);
-    pdf.text(`Período: ${periodo}`, 20, 56);
-    pdf.text(`Total de registros: ${registrosPeriodo.length}`, 20, 64);
-    pdf.text(`Total trabalhado: ${formatarSegundos(totalSegundos)}`, 20, 72);
+    let posicaoY = 108;
+    desenharCabecalhoTabela(pdf, posicaoY);
+    posicaoY += 14;
 
-    let posicaoY = 90;
-
-    Object.entries(registrosAgrupadosPorDia).forEach(
-      ([data, registrosDoDia]) => {
-        pdf.setFontSize(12);
-        pdf.setFont("helvetica", "bold");
-        pdf.text(data.toUpperCase(), 20, posicaoY);
-
-        posicaoY += 10;
-
-        registrosDoDia.forEach((registro) => {
-          pdf.setFontSize(10);
-          pdf.setFont("helvetica", "bold");
-
-          pdf.text("Entrada", 25, posicaoY);
-          pdf.text("Saída", 80, posicaoY);
-          pdf.text("Total", 135, posicaoY);
-
-          posicaoY += 7;
-
-          pdf.setFont("helvetica", "normal");
-
-          pdf.text(formatarHora(registro.horaEntrada), 25, posicaoY);
-
-          pdf.text(
-            registro.horaSaida
-              ? formatarHora(registro.horaSaida)
-              : "Não registrada",
-            80,
-            posicaoY
-          );
-
-          pdf.text(formatarTotal(registro.totalTrabalhado), 135, posicaoY);
-
-          posicaoY += 12;
-
-          if (posicaoY > 270) {
-            pdf.addPage();
-            posicaoY = 20;
-          }
-        });
-
-        posicaoY += 8;
+    registrosPeriodo.forEach((registro, indice) => {
+      if (posicaoY > 260) {
+        pdf.addPage();
+        desenharCabecalho(pdf, logoRelatorio);
+        desenharTitulo(pdf, periodo, totalSegundos);
+        posicaoY = 108;
+        desenharCabecalhoTabela(pdf, posicaoY);
+        posicaoY += 14;
       }
-    );
 
-    pdf.save(`relatorio-${usuario.nome}.pdf`);
+      if (indice % 2 === 0) {
+        pdf.setFillColor(248, 250, 252);
+        pdf.rect(20, posicaoY - 6, 170, 11, "F");
+      }
+
+      pdf.setDrawColor(226, 232, 240);
+      pdf.line(20, posicaoY + 6, 190, posicaoY + 6);
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.setTextColor(51, 65, 85);
+      pdf.text(formatarDataTabela(registro.data), 24, posicaoY);
+      pdf.text(formatarHora(registro.horaEntrada), 78, posicaoY);
+      pdf.text(formatarHora(registro.horaSaida), 116, posicaoY);
+      pdf.text(formatarTotal(registro.totalTrabalhado), 152, posicaoY);
+
+      posicaoY += 12;
+    });
+
+    pdf.save(`relatorio-${usuarioAtual.nome}.pdf`);
   }
-
   const registrosHoje = registros.filter((registro) => {
     const dataRegistro = new Date(registro.data).toDateString();
     const hoje = new Date().toDateString();
@@ -267,7 +325,7 @@ function AlunoDashboard() {
     return dataRegistro === hoje;
   });
 
-  const entradaAberta = registros.some(
+  const entradaAberta = registrosHoje.some(
     (registro) => registro.horaSaida === null
   );
 
@@ -275,20 +333,14 @@ function AlunoDashboard() {
     <div className="min-h-screen bg-slate-50">
       <header className="bg-gradient-to-r from-blue-900 via-blue-700 to-sky-500 text-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-4">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20">
-              🕒
-            </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest">
+              Prefeitura do Rio · Subsecretaria de Gestão
+            </p>
 
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest">
-                Prefeitura do Rio · Subsecretaria de Gestão
-              </p>
-
-              <h1 className="text-xl font-bold">
-                Ponto <span className="text-sky-300">Digital</span>
-              </h1>
-            </div>
+            <h1 className="text-xl font-bold">
+              Ponto <span className="text-sky-300">Digital</span>
+            </h1>
           </div>
 
           <p className="text-xl font-bold">
@@ -310,8 +362,8 @@ function AlunoDashboard() {
           })}
         </p>
 
-        <h1 className="mt-2 text-4xl font-extrabold text-blue-900">
-          Dashboard do Estagiário
+        <h1 className="mt-2 text-4xl font-bold text-blue-900">
+          Dashboard do Acadêmico Bolsista
         </h1>
 
         <p className="mt-3 text-xl text-slate-500">
@@ -323,11 +375,11 @@ function AlunoDashboard() {
         <section className="mt-8 rounded-3xl bg-white p-8 shadow-sm">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-sm font-bold uppercase text-slate-500">
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                 Hora atual
               </p>
 
-              <p className="text-4xl font-semibold text-slate-900">
+              <p className="mt-3 text-4xl font-semibold text-slate-900">
                 {horaAtual.toLocaleTimeString("pt-BR")}
               </p>
             </div>
@@ -352,23 +404,29 @@ function AlunoDashboard() {
 
         <section className="mt-8 grid gap-6 lg:grid-cols-3">
           <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <p className="text-lg text-slate-500">Registros hoje</p>
-            <h2 className="mt-4 text-3xl font-semibold">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Registros hoje
+            </p>
+            <h2 className="mt-3 text-4xl font-semibold text-slate-900">
               {registrosHoje.length}
             </h2>
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <p className="text-lg text-slate-500">Total de registros</p>
-            <h2 className="mt-4 text-3xl font-extrabold">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Total de registros
+            </p>
+            <h2 className="mt-3 text-4xl font-semibold text-slate-900">
               {registros.length}
             </h2>
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <p className="text-lg text-slate-500">Status</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Status
+            </p>
             <h2
-              className={`mt-4 text-3xl font-extrabold ${
+              className={`mt-3 text-4xl font-semibold ${
                 entradaAberta ? "text-green-600" : "text-red-600"
               }`}
             >
@@ -477,4 +535,4 @@ function AlunoDashboard() {
   );
 }
 
-export default AlunoDashboard;
+export default AcademicoDashboard;
