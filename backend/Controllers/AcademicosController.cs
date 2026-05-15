@@ -39,36 +39,36 @@ public class AcademicosController : ControllerBase
 
     // Cadastra um novo acadêmico ou administrador
     [HttpPost]
-    public IActionResult Post(Academico academico)
+    public IActionResult Post(CriarAcademicoRequest dadosCadastro)
     {
-        if (string.IsNullOrWhiteSpace(academico.Matricula))
+        if (string.IsNullOrWhiteSpace(dadosCadastro.Matricula))
         {
             return BadRequest("A matrícula é obrigatória.");
         }
 
-        if (string.IsNullOrWhiteSpace(academico.Nome))
+        if (string.IsNullOrWhiteSpace(dadosCadastro.Nome))
         {
             return BadRequest("O nome é obrigatório.");
         }
 
-        if (string.IsNullOrWhiteSpace(academico.Email))
+        if (string.IsNullOrWhiteSpace(dadosCadastro.Email))
         {
             return BadRequest("O email é obrigatório.");
         }
 
-        if (!academico.Email.EndsWith("@gmail.com"))
+        if (!dadosCadastro.Email.EndsWith("@gmail.com"))
         {
             return BadRequest("O email deve ser um Gmail válido.");
         }
 
-        if (string.IsNullOrWhiteSpace(academico.Senha))
+        if (string.IsNullOrWhiteSpace(dadosCadastro.Senha))
         {
             return BadRequest("A senha é obrigatória.");
         }
 
         var emailJaExiste = _context.Academicos.Any(a =>
             a.Ativo &&
-            a.Email == academico.Email
+            a.Email == dadosCadastro.Email
         );
 
         if (emailJaExiste)
@@ -78,13 +78,25 @@ public class AcademicosController : ControllerBase
 
         var matriculaJaExiste = _context.Academicos.Any(a =>
             a.Ativo &&
-            a.Matricula == academico.Matricula
+            a.Matricula == dadosCadastro.Matricula
         );
 
         if (matriculaJaExiste)
         {
             return BadRequest("Já existe um usuário cadastrado com esta matrícula.");
         }
+
+        var academico = new Academico
+        {
+            Matricula = dadosCadastro.Matricula,
+            Nome = dadosCadastro.Nome,
+            Email = dadosCadastro.Email,
+            Senha = dadosCadastro.Senha,
+            EhAdmin = dadosCadastro.EhAdmin,
+            HorarioEntrada = dadosCadastro.HorarioEntrada,
+            HorarioSaida = dadosCadastro.HorarioSaida,
+            Ativo = true
+        };
 
         _context.Academicos.Add(academico);
         _context.SaveChanges();
@@ -104,7 +116,7 @@ public class AcademicosController : ControllerBase
 
     // Realiza o login dos acadêmicos e administradores
     [HttpPost("login")]
-    public IActionResult Login(Academico dadosLogin)
+    public IActionResult Login(LoginRequest dadosLogin)
     {
         var academico = _context.Academicos.FirstOrDefault(a =>
             a.Ativo &&
