@@ -30,6 +30,15 @@ type StatusAcademico = {
   texto: string;
 };
 
+type LinhaRelatorioPresenca = {
+  nome: string;
+  data: Date;
+  entrada: string;
+  saida: string;
+  total: string;
+  status: "Presente" | "Presente com atraso" | "Ausente";
+};
+
 function AdminDashboard() {
   const [academicos, setAcademicos] = useState<Academico[]>([]);
   const [registros, setRegistros] = useState<RegistroPonto[]>([]);
@@ -200,11 +209,41 @@ function AdminDashboard() {
 
     const limiteAtraso = criarDataComHorario(academico.horarioEntrada);
     const limiteFalta = criarDataComHorario(academico.horarioSaida);
+    const inicioExpediente = criarDataComHorario(academico.horarioEntrada);
 
     const toleranciaMinutos = 10;
     limiteAtraso.setMinutes(limiteAtraso.getMinutes() + toleranciaMinutos);
 
-    if (registrosHoje.length === 0) {
+    const inicioValidoDoExpediente = new Date(inicioExpediente);
+    inicioValidoDoExpediente.setMinutes(
+      inicioValidoDoExpediente.getMinutes() - toleranciaMinutos
+    );
+
+    const entradaAberta = registrosHoje.find(
+      (registro) => registro.horaSaida === null
+    );
+
+    if (entradaAberta) {
+      const horaEntrada = new Date(entradaAberta.horaEntrada);
+
+      if (horaEntrada > limiteAtraso) {
+        return {
+          texto: "No expediente • Entrada com atraso",
+        };
+      }
+
+      return {
+        texto: `No expediente até ${academico.horarioSaida}`,
+      };
+    }
+
+    const registrosDoExpediente = registrosHoje.filter((registro) => {
+      const horaEntrada = new Date(registro.horaEntrada);
+
+      return horaEntrada >= inicioValidoDoExpediente;
+    });
+
+    if (registrosDoExpediente.length === 0) {
       if (agora >= limiteAtraso && agora < limiteFalta) {
         return {
           texto: `Atrasado • Entrada prevista: ${academico.horarioEntrada}`,
@@ -213,48 +252,32 @@ function AdminDashboard() {
 
       if (agora >= limiteFalta) {
         return {
-          texto: `Faltou • Expediente encerrado às ${academico.horarioSaida}`,
+          texto: `Ausente • Expediente encerrado às ${academico.horarioSaida}`,
         };
       }
 
       return {
-        texto: `Ainda não chegou • Entrada às ${academico.horarioEntrada}`,
+        texto: `Aguardando entrada • Entrada às ${academico.horarioEntrada}`,
       };
     }
 
-    const temEntradaAberta = registrosHoje.some(
-      (registro) => registro.horaSaida === null
-    );
-
-    const primeiroRegistro = registrosHoje[0];
+    const primeiroRegistro = registrosDoExpediente[0];
     const horaEntrada = new Date(primeiroRegistro.horaEntrada);
 
     if (horaEntrada > limiteAtraso) {
-      if (temEntradaAberta) {
-        return {
-          texto: "Em expediente • Chegou com atraso",
-        };
-      }
-
       return {
-        texto: "Chegou com atraso",
-      };
-    }
-
-    if (temEntradaAberta) {
-      return {
-        texto: `Em expediente até ${academico.horarioSaida}`,
+        texto: "Entrada com atraso",
       };
     }
 
     return {
-      texto: "Fora",
+      texto: "Expediente encerrado",
     };
   }
 
   async function gerarPdfRelatorio() {
     if (!dataInicial || !dataFinal) {
-      alert("Selecione o periodo do relatorio.");
+      alert("Selecione o período do relatório.");
       return;
     }
 
@@ -263,10 +286,73 @@ function AdminDashboard() {
       return new Date(ano, mes - 1, dia).toLocaleDateString("pt-BR");
     }
 
-    function formatarDataRegistro(data: string) {
-      const dataSemHora = data.split("T")[0];
-      const [ano, mes, dia] = dataSemHora.split("-").map(Number);
-      return new Date(ano, mes - 1, dia).toLocaleDateString("pt-BR");
+    function formatarDataRelatorio(data: Date) {
+      return data.toLocaleDateString("pt-BR");
+    }
+
+    function obterChaveData(data: Date) {
+      const ano = data.getFullYear();
+      const mes = String(data.getMonth() + 1).padStart(2, "0");
+      const dia = String(data.getDate()).padStart(2, "0");
+
+      return `${ano}-${mes}-${dia}`;
+    }
+
+    function listarDiasUteis(inicioPeriodo: Date, fimPeriodo: Date) {
+      const dias: Date[] = [];
+      const diaAtual = new Date(inicioPeriodo);
+      diaAtual.setHours(0, 0, 0, 0);
+
+      while (diaAtual <= fimPeriodo) {
+        const diaSemana = diaAtual.getDay();
+
+        if (diaSemana !== 0 && diaSemana !== 6) {
+          dias.push(new Date(diaAtual));
+        }
+
+        diaAtual.setDate(diaAtual.getDate() + 1);
+      }
+
+      return dias;
+    }
+
+    function segundosDoTotal(total: string | null) {
+      if (!total) return 0;
+
+      const [horas, minutos, segundos] = total
+        .split(".")[0]
+        .split(":")
+        .map(Number);
+
+      return horas * 3600 + minutos * 60 + segundos;
+    }
+
+    function formatarSegundos(totalSegundos: number) {
+      const horas = Math.floor(totalSegundos / 3600);
+      const minutos = Math.floor((totalSegundos % 3600) / 60);
+      const segundos = totalSegundos % 60;
+
+      return `${String(horas).padStart(2, "0")}:${String(minutos).padStart(
+        2,
+        "0"
+      )}:${String(segundos).padStart(2, "0")}`;
+    }
+
+    function obterStatusPresenca(
+      academico: Academico,
+      registrosDia: RegistroPonto[]
+    ): LinhaRelatorioPresenca["status"] {
+      if (registrosDia.length === 0) return "Ausente";
+      if (!academico.horarioEntrada) return "Presente";
+
+      const limiteAtraso = criarDataComHorario(academico.horarioEntrada);
+      limiteAtraso.setMinutes(limiteAtraso.getMinutes() + 10);
+
+      const primeiraEntrada = new Date(registrosDia[0].horaEntrada);
+
+      return primeiraEntrada > limiteAtraso
+        ? "Presente com atraso"
+        : "Presente";
     }
 
     async function carregarImagemRelatorio() {
@@ -318,18 +404,13 @@ function AdminDashboard() {
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(18);
       pdf.setTextColor(15, 23, 42);
-      pdf.text("Relatorio de Ponto", 20, 63);
+      pdf.text("Relatório de Ponto", 20, 63);
 
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(10);
       pdf.setTextColor(71, 85, 105);
-      pdf.text("Subsecretaria de Gestao", 20, 71);
-      pdf.text(`Periodo: ${periodo}`, 20, 78);
-      pdf.text(
-        `Gerado em: ${new Date().toLocaleDateString("pt-BR")}`,
-        20,
-        85
-      );
+      pdf.text("Subsecretaria de Gestão", 20, 71);
+      pdf.text(`Período: ${periodo}`, 20, 78);
     }
 
     function desenharCabecalhoTabela(pdf: jsPDF, posicaoY: number) {
@@ -340,10 +421,11 @@ function AdminDashboard() {
       pdf.setFontSize(9);
       pdf.setTextColor(255, 255, 255);
       pdf.text("Nome", 24, posicaoY + 6.5);
-      pdf.text("Data", 78, posicaoY + 6.5);
-      pdf.text("Entrada", 108, posicaoY + 6.5);
-      pdf.text("Saida", 138, posicaoY + 6.5);
-      pdf.text("Total", 164, posicaoY + 6.5);
+      pdf.text("Data", 80, posicaoY + 6.5, { align: "center" });
+      pdf.text("Entrada", 108, posicaoY + 6.5, { align: "center" });
+      pdf.text("Saída", 132, posicaoY + 6.5, { align: "center" });
+      pdf.text("Total", 154, posicaoY + 6.5, { align: "center" });
+      pdf.text("Status", 177, posicaoY + 6.5, { align: "center" });
     }
 
     const [anoInicio, mesInicio, diaInicio] = dataInicial
@@ -359,6 +441,21 @@ function AdminDashboard() {
       return;
     }
 
+    const diasUteis = listarDiasUteis(inicio, fim);
+    const academicosBolsistas = academicos
+      .filter((academico) => !academico.ehAdmin)
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+
+    if (diasUteis.length === 0) {
+      alert("Selecione um período com pelo menos um dia útil.");
+      return;
+    }
+
+    if (academicosBolsistas.length === 0) {
+      alert("Nenhum acadêmico bolsista cadastrado.");
+      return;
+    }
+
     const registrosPeriodo = registros
       .filter((registro) => {
         const dataRegistro = new Date(registro.data);
@@ -371,24 +468,49 @@ function AdminDashboard() {
           new Date(b.horaEntrada).getTime()
       );
 
-    if (registrosPeriodo.length === 0) {
-      alert("Nenhum registro encontrado nesse periodo.");
-      return;
-    }
+    const linhasRelatorio: LinhaRelatorioPresenca[] = diasUteis.flatMap(
+      (dia) => {
+        const chaveDia = obterChaveData(dia);
 
-    const registrosPorPessoa = registrosPeriodo.reduce(
-      (grupos: Record<string, RegistroPonto[]>, registro) => {
-        const nome = registro.academico?.nome ?? "Nao informado";
+        return academicosBolsistas.map((academico) => {
+          const registrosDia = registrosPeriodo.filter((registro) => {
+            const dataRegistro = new Date(registro.data);
 
-        if (!grupos[nome]) {
-          grupos[nome] = [];
-        }
+            return (
+              obterChaveData(dataRegistro) === chaveDia &&
+              registro.academico?.email === academico.email
+            );
+          });
 
-        grupos[nome].push(registro);
+          const totalSegundos = registrosDia.reduce(
+            (total, registro) => total + segundosDoTotal(registro.totalTrabalhado),
+            0
+          );
 
-        return grupos;
-      },
-      {}
+          const primeiraEntrada = registrosDia[0]?.horaEntrada ?? null;
+          const registrosComSaida = registrosDia.filter(
+            (registro) => registro.horaSaida
+          );
+          const ultimaSaida =
+            registrosComSaida[registrosComSaida.length - 1]?.horaSaida ?? null;
+          const temRegistroAberto = registrosDia.some(
+            (registro) => registro.horaSaida === null
+          );
+
+          return {
+            nome: academico.nome,
+            data: dia,
+            entrada: primeiraEntrada ? formatarHora(primeiraEntrada) : "--:--",
+            saida: ultimaSaida ? formatarHora(ultimaSaida) : "--:--",
+            total: temRegistroAberto
+              ? "Em andamento"
+              : registrosDia.length > 0
+              ? formatarSegundos(totalSegundos)
+              : "00:00:00",
+            status: obterStatusPresenca(academico, registrosDia),
+          };
+        });
+      }
     );
 
     const pdf = new jsPDF();
@@ -400,7 +522,7 @@ function AdminDashboard() {
       logoRelatorio = undefined;
     }
 
-    const periodo = `${formatarDataInput(dataInicial)} ate ${formatarDataInput(
+    const periodo = `${formatarDataInput(dataInicial)} até ${formatarDataInput(
       dataFinal
     )}`;
 
@@ -409,50 +531,58 @@ function AdminDashboard() {
 
     let posicaoY = 98;
 
-    Object.values(registrosPorPessoa).forEach((registrosPessoa) => {
-      if (posicaoY > 242) {
+    desenharCabecalhoTabela(pdf, posicaoY);
+    posicaoY += 14;
+
+    linhasRelatorio.forEach((linha, indice) => {
+      if (posicaoY > 260) {
         pdf.addPage();
         desenharCabecalho(pdf, logoRelatorio);
         desenharTitulo(pdf, periodo);
         posicaoY = 98;
+        desenharCabecalhoTabela(pdf, posicaoY);
+        posicaoY += 14;
       }
 
-      desenharCabecalhoTabela(pdf, posicaoY);
-      posicaoY += 14;
+      if (indice % 2 === 0) {
+        pdf.setFillColor(248, 250, 252);
+        pdf.rect(20, posicaoY - 6, 170, 11, "F");
+      }
 
-      registrosPessoa.forEach((registro, indice) => {
-        if (posicaoY > 260) {
-          pdf.addPage();
-          desenharCabecalho(pdf, logoRelatorio);
-          desenharTitulo(pdf, periodo);
-          posicaoY = 98;
-          desenharCabecalhoTabela(pdf, posicaoY);
-          posicaoY += 14;
-        }
+      pdf.setDrawColor(226, 232, 240);
+      pdf.line(20, posicaoY + 6, 190, posicaoY + 6);
 
-        if (indice % 2 === 0) {
-          pdf.setFillColor(248, 250, 252);
-          pdf.rect(20, posicaoY - 6, 170, 11, "F");
-        }
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8);
+      pdf.setTextColor(15, 23, 42);
+      pdf.text(linha.nome, 24, posicaoY, { maxWidth: 48 });
 
-        pdf.setDrawColor(226, 232, 240);
-        pdf.line(20, posicaoY + 6, 190, posicaoY + 6);
-
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(9);
-        pdf.setTextColor(15, 23, 42);
-        pdf.text(registro.academico?.nome ?? "Nao informado", 24, posicaoY);
-
-        pdf.setTextColor(51, 65, 85);
-        pdf.text(formatarDataRegistro(registro.data), 78, posicaoY);
-        pdf.text(formatarHora(registro.horaEntrada), 108, posicaoY);
-        pdf.text(formatarHora(registro.horaSaida), 138, posicaoY);
-        pdf.text(formatarTotal(registro.totalTrabalhado), 164, posicaoY);
-
-        posicaoY += 12;
+      pdf.setTextColor(51, 65, 85);
+      pdf.text(formatarDataRelatorio(linha.data), 80, posicaoY, {
+        align: "center",
+      });
+      pdf.text(linha.entrada, 108, posicaoY, {
+        align: "center",
+      });
+      pdf.text(linha.saida, 132, posicaoY, {
+        align: "center",
+      });
+      pdf.text(linha.total, 154, posicaoY, {
+        align: "center",
       });
 
-      posicaoY += 8;
+      if (linha.status === "Ausente") {
+        pdf.setTextColor(185, 28, 28);
+      } else {
+        pdf.setTextColor(22, 101, 52);
+      }
+
+      pdf.text(linha.status, 177, posicaoY, {
+        align: "center",
+        maxWidth: 28,
+      });
+
+      posicaoY += 12;
     });
 
     if (posicaoY > 236) {
@@ -465,13 +595,20 @@ function AdminDashboard() {
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(11);
     pdf.setTextColor(15, 23, 42);
-    pdf.text("Assinatura do responsavel:", 20, posicaoY + 18);
+    pdf.text("Assinatura do responsável:", 20, posicaoY + 18);
     pdf.setDrawColor(100, 116, 139);
     pdf.line(20, posicaoY + 42, 120, posicaoY + 42);
+    pdf.setFontSize(9);
+    pdf.setTextColor(71, 85, 105);
+    pdf.text(
+      `Gerado em: ${new Date().toLocaleDateString("pt-BR")}`,
+      20,
+      posicaoY + 50
+    );
 
     pdf.save("relatorio-ponto.pdf");
 
-    setToast("Relatorio gerado com sucesso!");
+    setToast("Relatório gerado com sucesso!");
 
     setTimeout(() => {
       setToast("");
@@ -759,15 +896,15 @@ const diasDoMes = Array.from(
                             : "ACADÊMICO BOLSISTA"}
                         </span>
 
-                        {status?.texto.includes("Em expediente") && (
+                        {status?.texto.includes("No expediente") && (
                           <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-700">
-                            Em expediente
+                            No expediente
                           </span>
                         )}
 
-                        {status?.texto.includes("Chegou com atraso") && (
+                        {status?.texto.includes("Entrada com atraso") && (
                           <span className="rounded-full bg-yellow-100 px-2 py-1 text-xs font-bold text-yellow-700">
-                            Chegou com atraso
+                            Entrada com atraso
                           </span>
                         )}
 
@@ -777,21 +914,21 @@ const diasDoMes = Array.from(
                           </span>
                         )}
 
-                        {status?.texto.includes("Faltou") && (
+                        {status?.texto.includes("Ausente") && (
                           <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-bold text-red-700">
-                            Faltou
+                            Ausente
                           </span>
                         )}
 
-                        {status?.texto === "Fora" && (
+                        {status?.texto === "Expediente encerrado" && (
                           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
-                            Fora
+                            Expediente encerrado
                           </span>
                         )}
 
-                        {status?.texto.includes("Ainda não chegou") && (
+                        {status?.texto.includes("Aguardando entrada") && (
                           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
-                            Ainda não chegou
+                            Aguardando entrada
                           </span>
                         )}
                       </div>

@@ -6,6 +6,8 @@ type Usuario = {
   nome: string;
   email: string;
   matricula: string;
+  horarioEntrada?: string;
+  horarioSaida?: string;
 };
 
 type RegistroPonto = {
@@ -148,7 +150,7 @@ function AcademicoDashboard() {
     const usuarioAtual = usuario;
 
     if (!dataInicial || !dataFinal) {
-      alert("Selecione o periodo do relatorio.");
+      alert("Selecione o período do relatório.");
       return;
     }
 
@@ -201,14 +203,14 @@ function AcademicoDashboard() {
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(18);
       pdf.setTextColor(15, 23, 42);
-      pdf.text("Relatorio Individual de Ponto", 20, 63);
+      pdf.text("Relatório Individual de Ponto", 20, 63);
 
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(10);
       pdf.setTextColor(71, 85, 105);
       pdf.text(`Nome: ${usuarioAtual.nome}`, 20, 71);
-      pdf.text(`Matricula: ${usuarioAtual.matricula}`, 20, 78);
-      pdf.text(`Periodo: ${periodo}`, 20, 85);
+      pdf.text(`Matrícula: ${usuarioAtual.matricula}`, 20, 78);
+      pdf.text(`Período: ${periodo}`, 20, 85);
       pdf.text(`Total trabalhado: ${formatarSegundos(totalSegundos)}`, 20, 92);
     }
 
@@ -219,10 +221,10 @@ function AcademicoDashboard() {
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(9);
       pdf.setTextColor(255, 255, 255);
-      pdf.text("Data", 24, posicaoY + 6.5);
-      pdf.text("Entrada", 78, posicaoY + 6.5);
-      pdf.text("Saida", 116, posicaoY + 6.5);
-      pdf.text("Total", 152, posicaoY + 6.5);
+      pdf.text("Data", 47, posicaoY + 6.5, { align: "center" });
+      pdf.text("Entrada", 95, posicaoY + 6.5, { align: "center" });
+      pdf.text("Saída", 135, posicaoY + 6.5, { align: "center" });
+      pdf.text("Total", 170, posicaoY + 6.5, { align: "center" });
     }
 
     function formatarDataTabela(data: string) {
@@ -258,7 +260,7 @@ function AcademicoDashboard() {
       );
 
     if (registrosPeriodo.length === 0) {
-      alert("Nenhum registro encontrado nesse periodo.");
+      alert("Nenhum registro encontrado nesse período.");
       return;
     }
 
@@ -276,7 +278,7 @@ function AcademicoDashboard() {
       logoRelatorio = undefined;
     }
 
-    const periodo = `${formatarDataInput(dataInicial)} ate ${formatarDataInput(
+    const periodo = `${formatarDataInput(dataInicial)} até ${formatarDataInput(
       dataFinal
     )}`;
 
@@ -308,10 +310,18 @@ function AcademicoDashboard() {
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(9);
       pdf.setTextColor(51, 65, 85);
-      pdf.text(formatarDataTabela(registro.data), 24, posicaoY);
-      pdf.text(formatarHora(registro.horaEntrada), 78, posicaoY);
-      pdf.text(formatarHora(registro.horaSaida), 116, posicaoY);
-      pdf.text(formatarTotal(registro.totalTrabalhado), 152, posicaoY);
+      pdf.text(formatarDataTabela(registro.data), 47, posicaoY, {
+        align: "center",
+      });
+      pdf.text(formatarHora(registro.horaEntrada), 95, posicaoY, {
+        align: "center",
+      });
+      pdf.text(formatarHora(registro.horaSaida), 135, posicaoY, {
+        align: "center",
+      });
+      pdf.text(formatarTotal(registro.totalTrabalhado), 170, posicaoY, {
+        align: "center",
+      });
 
       posicaoY += 12;
     });
@@ -325,9 +335,61 @@ function AcademicoDashboard() {
     return dataRegistro === hoje;
   });
 
-  const entradaAberta = registrosHoje.some(
-    (registro) => registro.horaSaida === null
-  );
+  function criarDataComHorario(horario: string) {
+    const [hora, minuto] = horario.split(":").map(Number);
+    const data = new Date();
+
+    data.setHours(hora, minuto, 0, 0);
+
+    return data;
+  }
+
+  function obterStatusAtual() {
+    const entradaAberta = registrosHoje.find(
+      (registro) => registro.horaSaida === null
+    );
+
+    if (entradaAberta) return "No expediente";
+
+    if (!usuario?.horarioEntrada || !usuario?.horarioSaida) {
+      return "Expediente encerrado";
+    }
+
+    const agora = new Date();
+    const toleranciaMinutos = 10;
+    const limiteAtraso = criarDataComHorario(usuario.horarioEntrada);
+    const limiteFalta = criarDataComHorario(usuario.horarioSaida);
+    const inicioValidoDoExpediente = criarDataComHorario(
+      usuario.horarioEntrada
+    );
+
+    limiteAtraso.setMinutes(limiteAtraso.getMinutes() + toleranciaMinutos);
+    inicioValidoDoExpediente.setMinutes(
+      inicioValidoDoExpediente.getMinutes() - toleranciaMinutos
+    );
+
+    const registrosDoExpediente = registrosHoje.filter((registro) => {
+      const horaEntrada = new Date(registro.horaEntrada);
+
+      return horaEntrada >= inicioValidoDoExpediente;
+    });
+
+    if (registrosDoExpediente.length > 0) {
+      return "Expediente encerrado";
+    }
+
+    if (agora >= limiteAtraso && agora < limiteFalta) {
+      return "Atrasado";
+    }
+
+    if (agora >= limiteFalta) {
+      return "Ausente";
+    }
+
+    return "Aguardando entrada";
+  }
+
+  const statusAtual = obterStatusAtual();
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -427,10 +489,12 @@ function AcademicoDashboard() {
             </p>
             <h2
               className={`mt-3 text-4xl font-semibold ${
-                entradaAberta ? "text-green-600" : "text-red-600"
+                statusAtual === "No expediente"
+                  ? "text-green-600"
+                  : "text-red-600"
               }`}
             >
-              {entradaAberta ? "Em expediente" : "Fora"}
+              {statusAtual}
             </h2>
           </div>
         </section>
