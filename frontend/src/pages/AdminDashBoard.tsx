@@ -46,7 +46,6 @@ function AdminDashboard() {
   const [matricula, setMatricula] = useState("");
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
-  const [senha, setSenha] = useState("");
   const [ehAdmin, setEhAdmin] = useState(false);
 
   const [horarioEntrada, setHorarioEntrada] = useState("");
@@ -92,7 +91,6 @@ function AdminDashboard() {
         matricula,
         nome,
         email,
-        senha,
         ehAdmin,
         horarioEntrada,
         horarioSaida,
@@ -105,7 +103,6 @@ function AdminDashboard() {
       setMatricula("");
       setNome("");
       setEmail("");
-      setSenha("");
       setEhAdmin(false);
       setHorarioEntrada("");
       setHorarioSaida("");
@@ -770,19 +767,6 @@ const diasDoMes = Array.from(
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold text-slate-600">
-                  Senha
-                </label>
-
-                <input
-                  type="password"
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
                   className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:border-blue-500"
                 />
               </div>

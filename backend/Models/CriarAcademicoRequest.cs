@@ -8,8 +8,6 @@ public class CriarAcademicoRequest
 
     public string Email { get; set; } = string.Empty;
 
-    public string Senha { get; set; } = string.Empty;
-
     public bool EhAdmin { get; set; } = false;
 
     public string HorarioEntrada { get; set; } = string.Empty;

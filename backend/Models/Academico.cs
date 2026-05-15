@@ -13,6 +13,8 @@ public class Academico
 
     public string Senha { get; set; } = string.Empty;
 
+    public bool PrecisaDefinirSenha { get; set; } = true;
+
     public bool EhAdmin { get; set; } = false;
 
     public string HorarioEntrada { get; set; } = string.Empty;

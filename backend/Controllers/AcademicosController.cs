@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Identity;
 using backend.Data;
 using backend.Models;
 
@@ -9,6 +10,7 @@ namespace backend.Controllers;
 public class AcademicosController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly PasswordHasher<Academico> _passwordHasher = new();
 
     public AcademicosController(AppDbContext context)
     {
@@ -30,6 +32,7 @@ public class AcademicosController : ControllerBase
                 a.EhAdmin,
                 a.HorarioEntrada,
                 a.HorarioSaida,
+                a.PrecisaDefinirSenha,
                 a.Ativo
             })
             .ToList();
@@ -61,11 +64,6 @@ public class AcademicosController : ControllerBase
             return BadRequest("O email deve ser um Gmail válido.");
         }
 
-        if (string.IsNullOrWhiteSpace(dadosCadastro.Senha))
-        {
-            return BadRequest("A senha é obrigatória.");
-        }
-
         var emailJaExiste = _context.Academicos.Any(a =>
             a.Ativo &&
             a.Email == dadosCadastro.Email
@@ -91,10 +89,10 @@ public class AcademicosController : ControllerBase
             Matricula = dadosCadastro.Matricula,
             Nome = dadosCadastro.Nome,
             Email = dadosCadastro.Email,
-            Senha = dadosCadastro.Senha,
             EhAdmin = dadosCadastro.EhAdmin,
             HorarioEntrada = dadosCadastro.HorarioEntrada,
             HorarioSaida = dadosCadastro.HorarioSaida,
+            PrecisaDefinirSenha = true,
             Ativo = true
         };
 
@@ -110,6 +108,7 @@ public class AcademicosController : ControllerBase
             academico.EhAdmin,
             academico.HorarioEntrada,
             academico.HorarioSaida,
+            academico.PrecisaDefinirSenha,
             academico.Ativo
         });
     }
@@ -120,13 +119,34 @@ public class AcademicosController : ControllerBase
     {
         var academico = _context.Academicos.FirstOrDefault(a =>
             a.Ativo &&
-            a.Email == dadosLogin.Email &&
-            a.Senha == dadosLogin.Senha
+            a.Email == dadosLogin.Email
         );
 
         if (academico == null || !academico.Ativo)
         {
             return Unauthorized("Email ou senha inválidos.");
+        }
+
+        if (academico.PrecisaDefinirSenha)
+        {
+            return StatusCode(403, "Primeiro acesso pendente. Defina sua senha para continuar.");
+        }
+
+        var resultadoSenha = VerificarSenha(academico, dadosLogin.Senha);
+
+        if (resultadoSenha == PasswordVerificationResult.Failed)
+        {
+            return Unauthorized("Email ou senha inválidos.");
+        }
+
+        if (resultadoSenha == PasswordVerificationResult.SuccessRehashNeeded)
+        {
+            academico.Senha = _passwordHasher.HashPassword(
+                academico,
+                dadosLogin.Senha
+            );
+
+            _context.SaveChanges();
         }
 
         return Ok(new
@@ -138,8 +158,83 @@ public class AcademicosController : ControllerBase
             academico.EhAdmin,
             academico.HorarioEntrada,
             academico.HorarioSaida,
+            academico.PrecisaDefinirSenha,
             academico.Ativo
         });
+    }
+
+    [HttpPost("primeiro-acesso")]
+    public IActionResult PrimeiroAcesso(PrimeiroAcessoRequest dadosPrimeiroAcesso)
+    {
+        if (string.IsNullOrWhiteSpace(dadosPrimeiroAcesso.Email))
+        {
+            return BadRequest("O email é obrigatório.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dadosPrimeiroAcesso.Matricula))
+        {
+            return BadRequest("A matrícula é obrigatória.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dadosPrimeiroAcesso.NovaSenha))
+        {
+            return BadRequest("A nova senha é obrigatória.");
+        }
+
+        if (dadosPrimeiroAcesso.NovaSenha.Length < 6)
+        {
+            return BadRequest("A nova senha deve ter pelo menos 6 caracteres.");
+        }
+
+        var academico = _context.Academicos.FirstOrDefault(a =>
+            a.Ativo &&
+            a.Email == dadosPrimeiroAcesso.Email &&
+            a.Matricula == dadosPrimeiroAcesso.Matricula
+        );
+
+        if (academico == null)
+        {
+            return NotFound("Usuário não encontrado.");
+        }
+
+        if (!academico.PrecisaDefinirSenha)
+        {
+            return BadRequest("A senha deste usuário já foi definida.");
+        }
+
+        academico.Senha = _passwordHasher.HashPassword(
+            academico,
+            dadosPrimeiroAcesso.NovaSenha
+        );
+        academico.PrecisaDefinirSenha = false;
+
+        _context.SaveChanges();
+
+        return Ok("Senha definida com sucesso. Faça login para continuar.");
+    }
+
+    private PasswordVerificationResult VerificarSenha(
+        Academico academico,
+        string senhaInformada
+    )
+    {
+        if (academico.Senha == senhaInformada)
+        {
+            return PasswordVerificationResult.SuccessRehashNeeded;
+        }
+
+        try
+        {
+            return _passwordHasher.VerifyHashedPassword(
+                academico,
+                academico.Senha,
+                senhaInformada
+            );
+        }
+        catch (FormatException)
+        {
+            return PasswordVerificationResult.Failed;
+        }
     }
 
     // Exclui um acadêmico ou administrador pelo ID
