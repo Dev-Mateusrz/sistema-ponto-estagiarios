@@ -1,5 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using backend.Data;
 using backend.Models;
 
@@ -10,14 +15,17 @@ namespace backend.Controllers;
 public class AcademicosController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IConfiguration _configuration;
     private readonly PasswordHasher<Academico> _passwordHasher = new();
 
-    public AcademicosController(AppDbContext context)
+    public AcademicosController(AppDbContext context, IConfiguration configuration)
     {
         _context = context;
+        _configuration = configuration;
     }
 
     // Retorna todos os acadêmicos cadastrados
+    [Authorize(Roles = "Admin")]
     [HttpGet]
     public IActionResult Get()
     {
@@ -41,6 +49,7 @@ public class AcademicosController : ControllerBase
     }
 
     // Cadastra um novo acadêmico ou administrador
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public IActionResult Post(CriarAcademicoRequest dadosCadastro)
     {
@@ -114,6 +123,7 @@ public class AcademicosController : ControllerBase
     }
 
     // Realiza o login dos acadêmicos e administradores
+    [AllowAnonymous]
     [HttpPost("login")]
     public IActionResult Login(LoginRequest dadosLogin)
     {
@@ -149,8 +159,37 @@ public class AcademicosController : ControllerBase
             _context.SaveChanges();
         }
 
+        var role = academico.EhAdmin ? "Admin" : "Academico";
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, academico.Id.ToString()),
+            new Claim(ClaimTypes.Name, academico.Nome),
+            new Claim(ClaimTypes.Email, academico.Email),
+            new Claim(ClaimTypes.Role, role)
+        };
+
+        var key = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!)
+        );
+
+        var credentials = new SigningCredentials(
+            key,
+            SecurityAlgorithms.HmacSha256
+        );
+
+        var token = new JwtSecurityToken(
+            issuer: _configuration["Jwt:Issuer"],
+            claims: claims,
+            expires: DateTime.Now.AddHours(8),
+            signingCredentials: credentials
+        );
+
+        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+
         return Ok(new
         {
+            token = tokenString,
             academico.Id,
             academico.Matricula,
             academico.Nome,
@@ -163,6 +202,7 @@ public class AcademicosController : ControllerBase
         });
     }
 
+    [AllowAnonymous]
     [HttpPost("primeiro-acesso")]
     public IActionResult PrimeiroAcesso(PrimeiroAcessoRequest dadosPrimeiroAcesso)
     {
@@ -238,6 +278,7 @@ public class AcademicosController : ControllerBase
     }
 
     // Exclui um acadêmico ou administrador pelo ID
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id}")]
     public IActionResult Delete(int id)
     {

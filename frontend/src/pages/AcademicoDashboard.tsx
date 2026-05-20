@@ -27,13 +27,19 @@ function AcademicoDashboard() {
   const [dataInicial, setDataInicial] = useState("");
   const [dataFinal, setDataFinal] = useState("");
 
+  function obterHeadersAutenticados() {
+    return {
+      Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
+    };
+  }
+
   useEffect(() => {
     const usuarioSalvo = localStorage.getItem("usuario");
 
     if (usuarioSalvo) {
       const usuarioConvertido = JSON.parse(usuarioSalvo);
       setUsuario(usuarioConvertido);
-      carregarRegistros(usuarioConvertido.id);
+      carregarRegistros();
     }
 
     const timer = setInterval(() => {
@@ -43,29 +49,27 @@ function AcademicoDashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  function carregarRegistros(academicoId: number) {
-    fetch("http://localhost:5294/registros-ponto")
+  function carregarRegistros() {
+    fetch("http://localhost:5294/registros-ponto", {
+      headers: obterHeadersAutenticados(),
+    })
       .then((res) => res.json())
       .then((dados) => {
-        const registrosDoUsuario = dados.filter(
-          (registro: RegistroPonto) => registro.academicoId === academicoId
-        );
-
-        setRegistros(registrosDoUsuario);
+        setRegistros(dados);
       });
   }
 
   async function registrarEntrada() {
     if (!usuario) return;
 
-    const resposta = await fetch(
-      `http://localhost:5294/registros-ponto/entrada/${usuario.id}`,
-      { method: "POST" }
-    );
+    const resposta = await fetch("http://localhost:5294/registros-ponto/entrada", {
+      method: "POST",
+      headers: obterHeadersAutenticados(),
+    });
 
     if (resposta.ok) {
       alert("Entrada registrada!");
-      carregarRegistros(usuario.id);
+      carregarRegistros();
     } else {
       const erro = await resposta.text();
       alert(erro);
@@ -75,14 +79,14 @@ function AcademicoDashboard() {
   async function registrarSaida() {
     if (!usuario) return;
 
-    const resposta = await fetch(
-      `http://localhost:5294/registros-ponto/saida/${usuario.id}`,
-      { method: "POST" }
-    );
+    const resposta = await fetch("http://localhost:5294/registros-ponto/saida", {
+      method: "POST",
+      headers: obterHeadersAutenticados(),
+    });
 
     if (resposta.ok) {
       alert("Saída registrada!");
-      carregarRegistros(usuario.id);
+      carregarRegistros();
     } else {
       alert("Erro ao registrar saída.");
     }
