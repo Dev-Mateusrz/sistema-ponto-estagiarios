@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 using backend.Data;
 using backend.Models;
 
@@ -16,11 +18,39 @@ public class RegistrosPontoController : ControllerBase
         _context = context;
     }
 
+    private int? ObterAcademicoIdLogado()
+    {
+        var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (int.TryParse(idClaim, out var academicoId))
+        {
+            return academicoId;
+        }
+
+        return null;
+    }
+
+    private bool UsuarioEhAdmin()
+    {
+        return User.IsInRole("Admin");
+    }
+
+    [Authorize]
     [HttpGet]
     public IActionResult Get()
     {
+        var academicoIdLogado = ObterAcademicoIdLogado();
+
+        if (academicoIdLogado == null)
+        {
+            return Unauthorized();
+        }
+
+        var usuarioEhAdmin = UsuarioEhAdmin();
+
         var registros = _context.RegistrosPonto
             .Include(r => r.Academico)
+            .Where(r => usuarioEhAdmin || r.AcademicoId == academicoIdLogado.Value)
             .OrderByDescending(r => r.HoraEntrada)
             .Select(r => new
             {
@@ -46,11 +76,19 @@ public class RegistrosPontoController : ControllerBase
         return Ok(registros);
     }
 
-    [HttpPost("entrada/{academicoId}")]
-    public IActionResult RegistrarEntrada(int academicoId)
+    [Authorize]
+    [HttpPost("entrada")]
+    public IActionResult RegistrarEntrada()
     {
+        var academicoId = ObterAcademicoIdLogado();
+
+        if (academicoId == null)
+        {
+            return Unauthorized();
+        }
+
         var academicoExiste = _context.Academicos.Any(a =>
-            a.Id == academicoId &&
+            a.Id == academicoId.Value &&
             a.Ativo
         );
 
@@ -62,7 +100,7 @@ public class RegistrosPontoController : ControllerBase
         var hoje = DateTime.Today;
 
         var registrosHoje = _context.RegistrosPonto.Count(r =>
-            r.AcademicoId == academicoId &&
+            r.AcademicoId == academicoId.Value &&
             r.Data == hoje
         );
 
@@ -72,7 +110,7 @@ public class RegistrosPontoController : ControllerBase
         }
 
         var entradaAberta = _context.RegistrosPonto.Any(r =>
-            r.AcademicoId == academicoId &&
+            r.AcademicoId == academicoId.Value &&
             r.Data == hoje &&
             r.HoraSaida == null
         );
@@ -84,7 +122,7 @@ public class RegistrosPontoController : ControllerBase
 
         var registro = new RegistroPonto
         {
-            AcademicoId = academicoId,
+            AcademicoId = academicoId.Value,
             Data = DateTime.Now.Date,
             HoraEntrada = DateTime.Now
         };
@@ -95,13 +133,21 @@ public class RegistrosPontoController : ControllerBase
         return Ok(registro);
     }
 
-    [HttpPost("saida/{academicoId}")]
-    public IActionResult RegistrarSaida(int academicoId)
+    [Authorize]
+    [HttpPost("saida")]
+    public IActionResult RegistrarSaida()
     {
+        var academicoId = ObterAcademicoIdLogado();
+
+        if (academicoId == null)
+        {
+            return Unauthorized();
+        }
+
         var hoje = DateTime.Today;
 
         var academicoExiste = _context.Academicos.Any(a =>
-            a.Id == academicoId &&
+            a.Id == academicoId.Value &&
             a.Ativo
         );
 
@@ -111,7 +157,7 @@ public class RegistrosPontoController : ControllerBase
         }
 
         var saidasHoje = _context.RegistrosPonto.Count(r =>
-            r.AcademicoId == academicoId &&
+            r.AcademicoId == academicoId.Value &&
             r.Data == hoje &&
             r.HoraSaida != null
         );
@@ -123,7 +169,7 @@ public class RegistrosPontoController : ControllerBase
 
         var registro = _context.RegistrosPonto
             .Where(r =>
-                r.AcademicoId == academicoId &&
+                r.AcademicoId == academicoId.Value &&
                 r.Data == hoje &&
                 r.HoraSaida == null
             )

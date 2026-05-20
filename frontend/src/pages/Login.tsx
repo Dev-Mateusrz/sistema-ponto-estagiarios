@@ -38,6 +38,7 @@ function Login() {
     if (resposta.ok) {
       const usuario = await resposta.json();
 
+      localStorage.setItem("token", usuario.token);
       localStorage.setItem("usuario", JSON.stringify(usuario));
 
       if (usuario.ehAdmin) {

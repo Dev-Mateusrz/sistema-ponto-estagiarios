@@ -59,14 +59,24 @@ function AdminDashboard() {
   const [dataInicial, setDataInicial] = useState("");
   const [dataFinal, setDataFinal] = useState("");
 
+  function obterHeadersAutenticados() {
+    return {
+      Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
+    };
+  }
+
   function carregarAcademicos() {
-    fetch("http://localhost:5294/academicos")
+    fetch("http://localhost:5294/academicos", {
+      headers: obterHeadersAutenticados(),
+    })
       .then((res) => res.json())
       .then((dados) => setAcademicos(dados));
   }
 
   function carregarRegistros() {
-    fetch("http://localhost:5294/registros-ponto")
+    fetch("http://localhost:5294/registros-ponto", {
+      headers: obterHeadersAutenticados(),
+    })
       .then((res) => res.json())
       .then((dados) => setRegistros(dados));
   }
@@ -86,6 +96,7 @@ function AdminDashboard() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...obterHeadersAutenticados(),
       },
       body: JSON.stringify({
         matricula,
@@ -120,6 +131,7 @@ function AdminDashboard() {
 
     const resposta = await fetch(`http://localhost:5294/academicos/${id}`, {
       method: "DELETE",
+      headers: obterHeadersAutenticados(),
     });
 
     if (resposta.ok) {
