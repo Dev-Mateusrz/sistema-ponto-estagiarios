@@ -1,3 +1,5 @@
+import { apiFetch } from "../lib/api";
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -28,8 +30,8 @@ function Login() {
   }
 
   async function fazerLogin() {
-    const resposta = await fetch(
-      "http://localhost:5294/academicos/login",
+    const resposta = await apiFetch(
+  "/academicos/login",
       {
         method: "POST",
 
@@ -76,7 +78,7 @@ function Login() {
     }
 
     const resposta = await fetch(
-      "http://localhost:5294/academicos/primeiro-acesso",
+  "http://localhost:5294/academicos/primeiro-acesso",
       {
         method: "POST",
 
