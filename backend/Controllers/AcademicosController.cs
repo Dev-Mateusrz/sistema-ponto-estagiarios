@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
@@ -16,10 +17,15 @@ namespace backend.Controllers;
 public class AcademicosController : ControllerBase
 {
     private readonly AppDbContext _context;
+
     private readonly IConfiguration _configuration;
+
     private readonly PasswordHasher<Academico> _passwordHasher = new();
 
-    public AcademicosController(AppDbContext context, IConfiguration configuration)
+    public AcademicosController(
+        AppDbContext context,
+        IConfiguration configuration
+    )
     {
         _context = context;
         _configuration = configuration;
@@ -28,9 +34,9 @@ public class AcademicosController : ControllerBase
     // Retorna todos os acadêmicos cadastrados
     [Authorize(Roles = "Admin")]
     [HttpGet]
-    public IActionResult Get()
+    public async Task<IActionResult> Get()
     {
-        var academicos = _context.Academicos
+        var academicos = await _context.Academicos
             .Where(a => a.Ativo)
             .Select(a => new
             {
@@ -44,7 +50,7 @@ public class AcademicosController : ControllerBase
                 a.PrecisaDefinirSenha,
                 a.Ativo
             })
-            .ToList();
+            .ToListAsync();
 
         return Ok(academicos);
     }
@@ -52,9 +58,10 @@ public class AcademicosController : ControllerBase
     // Cadastra um novo acadêmico ou administrador
     [Authorize(Roles = "Admin")]
     [HttpPost]
-    public IActionResult Post(CriarAcademicoRequest dadosCadastro)
+    public async Task<IActionResult> Post(
+        CriarAcademicoRequest dadosCadastro
+    )
     {
-
         if (string.IsNullOrWhiteSpace(dadosCadastro.Nome))
         {
             return BadRequest("O nome é obrigatório.");
@@ -70,58 +77,68 @@ public class AcademicosController : ControllerBase
             return BadRequest("O email deve ser um Gmail válido.");
         }
 
-        var emailJaExiste = _context.Academicos.Any(a =>
+        var emailJaExiste = await _context.Academicos.AnyAsync(a =>
             a.Ativo &&
             a.Email == dadosCadastro.Email
         );
 
         if (emailJaExiste)
         {
-            return BadRequest("Já existe um usuário cadastrado com este email.");
+            return BadRequest(
+                "Já existe um usuário cadastrado com este email."
+            );
         }
 
-        var matriculaJaExiste = _context.Academicos.Any(a =>
+        var matriculaJaExiste = await _context.Academicos.AnyAsync(a =>
             a.Ativo &&
             a.Matricula == dadosCadastro.Matricula
         );
 
         if (matriculaJaExiste)
         {
-            return BadRequest("Já existe um usuário cadastrado com esta matrícula.");
+            return BadRequest(
+                "Já existe um usuário cadastrado com esta matrícula."
+            );
         }
 
         var academico = new Academico
-{
-    PrimeiroAcessoToken = Guid.NewGuid().ToString(),
+        {
+            PrimeiroAcessoToken = Guid.NewGuid().ToString(),
 
-    PrimeiroAcessoTokenExpiraEm = DateTime.UtcNow.AddHours(24),
+            PrimeiroAcessoTokenExpiraEm =
+                DateTime.UtcNow.AddHours(24),
 
-    Matricula = dadosCadastro.Matricula,
+            Matricula = dadosCadastro.Matricula,
 
-    Nome = dadosCadastro.Nome,
+            Nome = dadosCadastro.Nome,
 
-    Email = dadosCadastro.Email,
+            Email = dadosCadastro.Email,
 
-    EhAdmin = dadosCadastro.EhAdmin,
+            EhAdmin = dadosCadastro.EhAdmin,
 
-    HorarioEntrada = dadosCadastro.HorarioEntrada,
+            HorarioEntrada =
+                dadosCadastro.HorarioEntrada,
 
-    HorarioSaida = dadosCadastro.HorarioSaida,
+            HorarioSaida =
+                dadosCadastro.HorarioSaida,
 
-    PrecisaDefinirSenha = true,
+            PrecisaDefinirSenha = true,
 
-    Ativo = true
-};
+            Ativo = true
+        };
 
-       try
-{
-    _context.Academicos.Add(academico);
-    _context.SaveChanges();
-}
-catch
-{
-    return BadRequest("Já existe um usuário com este email ou matrícula.");
-}
+        try
+        {
+            _context.Academicos.Add(academico);
+
+            await _context.SaveChangesAsync();
+        }
+        catch
+        {
+            return BadRequest(
+                "Já existe um usuário com este email ou matrícula."
+            );
+        }
 
         return Created("", new
         {
@@ -133,61 +150,102 @@ catch
             academico.HorarioEntrada,
             academico.HorarioSaida,
             academico.PrecisaDefinirSenha,
-            academico.Ativo
+            academico.Ativo,
+
+            primeiroAcessoToken =
+                academico.PrimeiroAcessoToken
         });
     }
 
-    // Realiza o login dos acadêmicos e administradores
+    // Realiza login
     [AllowAnonymous]
-[EnableRateLimiting("login")]
-[HttpPost("login")]
-    
-    public IActionResult Login(LoginRequest dadosLogin)
+    [EnableRateLimiting("login")]
+    [HttpPost("login")]
+    public async Task<IActionResult> Login(
+        LoginRequest dadosLogin
+    )
     {
-        var academico = _context.Academicos.FirstOrDefault(a =>
-            a.Ativo &&
-            a.Email == dadosLogin.Email
-        );
+        var academico =
+            await _context.Academicos
+                .FirstOrDefaultAsync(a =>
+                    a.Ativo &&
+                    a.Email == dadosLogin.Email
+                );
 
         if (academico == null || !academico.Ativo)
-{
-    return Unauthorized("Email ou senha inválidos.");
-}
-
-        if (academico.PrecisaDefinirSenha)
-{
-    return Unauthorized("Email ou senha inválidos.");
-}
-
-        var resultadoSenha = VerificarSenha(academico, dadosLogin.Senha);
-
-        if (resultadoSenha == PasswordVerificationResult.Failed)
-{
-    return Unauthorized("Email ou senha inválidos.");
-}
-
-        if (resultadoSenha == PasswordVerificationResult.SuccessRehashNeeded)
         {
-            academico.Senha = _passwordHasher.HashPassword(
-                academico,
-                dadosLogin.Senha
+            return Unauthorized(
+                "Email ou senha inválidos."
             );
-
-            _context.SaveChanges();
         }
 
-        var role = academico.EhAdmin ? "Admin" : "Academico";
+        if (academico.PrecisaDefinirSenha)
+        {
+            return Unauthorized(
+                "Email ou senha inválidos."
+            );
+        }
+
+        var resultadoSenha = VerificarSenha(
+            academico,
+            dadosLogin.Senha
+        );
+
+        if (
+            resultadoSenha ==
+            PasswordVerificationResult.Failed
+        )
+        {
+            return Unauthorized(
+                "Email ou senha inválidos."
+            );
+        }
+
+        if (
+            resultadoSenha ==
+            PasswordVerificationResult.SuccessRehashNeeded
+        )
+        {
+            academico.Senha =
+                _passwordHasher.HashPassword(
+                    academico,
+                    dadosLogin.Senha
+                );
+
+            await _context.SaveChangesAsync();
+        }
+
+        var role = academico.EhAdmin
+            ? "Admin"
+            : "Academico";
 
         var claims = new[]
         {
-            new Claim(ClaimTypes.NameIdentifier, academico.Id.ToString()),
-            new Claim(ClaimTypes.Name, academico.Nome),
-            new Claim(ClaimTypes.Email, academico.Email),
-            new Claim(ClaimTypes.Role, role)
+            new Claim(
+                ClaimTypes.NameIdentifier,
+                academico.Id.ToString()
+            ),
+
+            new Claim(
+                ClaimTypes.Name,
+                academico.Nome
+            ),
+
+            new Claim(
+                ClaimTypes.Email,
+                academico.Email
+            ),
+
+            new Claim(
+                ClaimTypes.Role,
+                role
+            )
         };
 
         var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!)
+            Encoding.UTF8.GetBytes(
+                _configuration["Jwt:Key"]!
+            )
         );
 
         var credentials = new SigningCredentials(
@@ -196,113 +254,167 @@ catch
         );
 
         var token = new JwtSecurityToken(
-    issuer: _configuration["Jwt:Issuer"],
-    audience: _configuration["Jwt:Audience"],
-    claims: claims,
-    expires: DateTime.UtcNow.AddHours(2),
-    signingCredentials: credentials
-);
+            issuer: _configuration["Jwt:Issuer"],
 
-        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+            audience: _configuration["Jwt:Audience"],
+
+            claims: claims,
+
+            expires: DateTime.UtcNow.AddHours(2),
+
+            signingCredentials: credentials
+        );
+
+        var tokenString =
+            new JwtSecurityTokenHandler()
+                .WriteToken(token);
 
         return Ok(new
         {
             token = tokenString,
+
             academico.Id,
+
             academico.Matricula,
+
             academico.Nome,
+
             academico.Email,
+
             academico.EhAdmin,
+
             academico.HorarioEntrada,
+
             academico.HorarioSaida,
+
             academico.PrecisaDefinirSenha,
+
             academico.Ativo
         });
     }
 
+    // Primeiro acesso
     [AllowAnonymous]
     [HttpPost("primeiro-acesso")]
-    public IActionResult PrimeiroAcesso(PrimeiroAcessoRequest dadosPrimeiroAcesso)
+    public async Task<IActionResult> PrimeiroAcesso(
+        PrimeiroAcessoRequest dadosPrimeiroAcesso
+    )
     {
-        if (string.IsNullOrWhiteSpace(dadosPrimeiroAcesso.Email))
+        if (
+            string.IsNullOrWhiteSpace(
+                dadosPrimeiroAcesso.Email
+            )
+        )
         {
-            return BadRequest("O email é obrigatório.");
+            return BadRequest(
+                "O email é obrigatório."
+            );
         }
 
-        if (string.IsNullOrWhiteSpace(dadosPrimeiroAcesso.NovaSenha))
+        if (
+            string.IsNullOrWhiteSpace(
+                dadosPrimeiroAcesso.NovaSenha
+            )
+        )
         {
-            return BadRequest("A nova senha é obrigatória.");
+            return BadRequest(
+                "A nova senha é obrigatória."
+            );
         }
 
-        if (dadosPrimeiroAcesso.NovaSenha.Length < 6)
+        if (
+            dadosPrimeiroAcesso.NovaSenha.Length < 6
+        )
         {
-            return BadRequest("A nova senha deve ter pelo menos 6 caracteres.");
+            return BadRequest(
+                "A nova senha deve ter pelo menos 6 caracteres."
+            );
         }
 
-        var academico = _context.Academicos.FirstOrDefault(a =>
-    a.Ativo &&
-    a.Email == dadosPrimeiroAcesso.Email &&
-    a.PrimeiroAcessoToken == dadosPrimeiroAcesso.Token &&
-    a.PrimeiroAcessoTokenExpiraEm > DateTime.UtcNow
-);
+        var academico =
+            await _context.Academicos
+                .FirstOrDefaultAsync(a =>
+                    a.Ativo &&
+                    a.Email ==
+                        dadosPrimeiroAcesso.Email &&
+                    a.PrimeiroAcessoToken ==
+                        dadosPrimeiroAcesso.Token &&
+                    a.PrimeiroAcessoTokenExpiraEm >
+                        DateTime.UtcNow
+                );
 
         if (academico == null)
         {
-            return NotFound("Usuário não encontrado.");
+            return NotFound(
+                "Usuário não encontrado."
+            );
         }
 
         if (!academico.PrecisaDefinirSenha)
         {
-            return BadRequest("A senha deste usuário já foi definida.");
+            return BadRequest(
+                "A senha deste usuário já foi definida."
+            );
         }
 
-        academico.Senha = _passwordHasher.HashPassword(
-            academico,
-            dadosPrimeiroAcesso.NovaSenha
-        );
+        academico.Senha =
+            _passwordHasher.HashPassword(
+                academico,
+                dadosPrimeiroAcesso.NovaSenha
+            );
+
         academico.PrecisaDefinirSenha = false;
+
         academico.PrimeiroAcessoToken = null;
 
-academico.PrimeiroAcessoTokenExpiraEm = null;
+        academico.PrimeiroAcessoTokenExpiraEm =
+            null;
 
-        _context.SaveChanges();
+        await _context.SaveChangesAsync();
 
-        return Ok("Senha definida com sucesso. Faça login para continuar.");
-    }
-
-        private PasswordVerificationResult VerificarSenha(
-    Academico academico,
-    string senhaInformada
-)
-{
-    try
-    {
-        return _passwordHasher.VerifyHashedPassword(
-            academico,
-            academico.Senha,
-            senhaInformada
+        return Ok(
+            "Senha definida com sucesso. Faça login para continuar."
         );
     }
-    catch
-    {
-        return PasswordVerificationResult.Failed;
-    }
-}
 
-    // Exclui um acadêmico ou administrador pelo ID
+    private PasswordVerificationResult VerificarSenha(
+        Academico academico,
+        string senhaInformada
+    )
+    {
+        try
+        {
+            return _passwordHasher
+                .VerifyHashedPassword(
+                    academico,
+                    academico.Senha,
+                    senhaInformada
+                );
+        }
+        catch
+        {
+            return PasswordVerificationResult.Failed;
+        }
+    }
+
+    // Exclui acadêmico
     [Authorize(Roles = "Admin")]
     [HttpDelete("{id}")]
-    public IActionResult Delete(int id)
+    public async Task<IActionResult> Delete(int id)
     {
-        var academico = _context.Academicos.Find(id);
+        var academico =
+            await _context.Academicos.FindAsync(id);
 
         if (academico == null || !academico.Ativo)
         {
-            return NotFound("Acadêmico não encontrado.");
+            return NotFound(
+                "Acadêmico não encontrado."
+            );
         }
 
         academico.Ativo = false;
-        _context.SaveChanges();
+
+        await _context.SaveChangesAsync();
 
         return NoContent();
     }

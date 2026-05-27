@@ -38,7 +38,7 @@ public class RegistrosPontoController : ControllerBase
     [Authorize]
 
     [HttpGet]
-    public IActionResult Get(
+    public async Task<IActionResult> Get(
         DateTime? dataInicial,
         DateTime? dataFinal
 )
@@ -96,14 +96,14 @@ if (dataFinal.HasValue)
                     r.Academico.Ativo
                 }
             })
-            .ToList();
+            .ToListAsync();
 
         return Ok(registros);
     }
 
     [Authorize]
     [HttpPost("entrada")]
-    public IActionResult RegistrarEntrada()
+    public async Task<IActionResult> RegistrarEntrada()
     {
         var academicoId = ObterAcademicoIdLogado();
 
@@ -112,7 +112,7 @@ if (dataFinal.HasValue)
             return Unauthorized();
         }
 
-        var academicoExiste = _context.Academicos.Any(a =>
+        var academicoExiste = await _context.Academicos.AnyAsync(a =>
             a.Id == academicoId.Value &&
             a.Ativo
         );
@@ -124,7 +124,7 @@ if (dataFinal.HasValue)
 
         var hoje = DateTime.Today;
 
-        var registrosHoje = _context.RegistrosPonto.Count(r =>
+        var registrosHoje = await _context.RegistrosPonto.CountAsync(r =>
             r.AcademicoId == academicoId.Value &&
             r.Data.Date == hoje
         );
@@ -134,7 +134,7 @@ if (dataFinal.HasValue)
             return BadRequest("Limite diário atingido: máximo de 2 expedientes por dia.");
         }
 
-        var entradaAberta = _context.RegistrosPonto.Any(r =>
+        var entradaAberta = await _context.RegistrosPonto.AnyAsync(r =>
             r.AcademicoId == academicoId.Value &&
             r.Data.Date == hoje &&
             r.HoraSaida == null
@@ -153,14 +153,14 @@ if (dataFinal.HasValue)
         };
 
         _context.RegistrosPonto.Add(registro);
-        _context.SaveChanges();
+        await _context.SaveChangesAsync();
 
         return Ok(registro);
     }
 
     [Authorize]
     [HttpPost("saida")]
-    public IActionResult RegistrarSaida()
+    public async Task<IActionResult> RegistrarSaida()
     {
         var academicoId = ObterAcademicoIdLogado();
 
@@ -182,14 +182,14 @@ if (dataFinal.HasValue)
         }
 
 
-        var registro = _context.RegistrosPonto
+        var registro = await _context.RegistrosPonto
             .Where(r =>
                 r.AcademicoId == academicoId.Value &&
                 r.Data.Date == hoje &&
                 r.HoraSaida == null
             )
             .OrderByDescending(r => r.HoraEntrada)
-            .FirstOrDefault();
+            .FirstOrDefaultAsync();
 
         if (registro == null)
         {
@@ -206,7 +206,7 @@ if (dataFinal.HasValue)
         registro.HoraSaida = horaSaida;
         registro.TotalTrabalhado = horaSaida - registro.HoraEntrada.Value;
 
-        _context.SaveChanges();
+       await _context.SaveChangesAsync();
 
         return Ok(registro);
     }
