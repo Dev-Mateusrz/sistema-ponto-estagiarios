@@ -173,7 +173,7 @@ public class AcademicosController : ControllerBase
     }
 
     // Realiza login
-    [AllowAnonymous]
+[AllowAnonymous]
 [EnableRateLimiting("login")]
 [HttpPost("login")]
 public async Task<IActionResult> Login(
@@ -196,87 +196,30 @@ public async Task<IActionResult> Login(
 
     // Primeiro acesso
     [AllowAnonymous]
-    [HttpPost("primeiro-acesso")]
-    public async Task<IActionResult> PrimeiroAcesso(
+[EnableRateLimiting("login")]
+[HttpPost("primeiro-acesso")]
+public async Task<IActionResult>
+    PrimeiroAcesso(
         PrimeiroAcessoRequest dadosPrimeiroAcesso
     )
+{
+    var sucesso =
+        await _academicoService
+            .DefinirPrimeiraSenhaAsync(
+                dadosPrimeiroAcesso
+            );
+
+    if (!sucesso)
     {
-        if (
-            string.IsNullOrWhiteSpace(
-                dadosPrimeiroAcesso.Email
-            )
-        )
-        {
-            return BadRequest(
-                "O email é obrigatório."
-            );
-        }
-
-        if (
-            string.IsNullOrWhiteSpace(
-                dadosPrimeiroAcesso.NovaSenha
-            )
-        )
-        {
-            return BadRequest(
-                "A nova senha é obrigatória."
-            );
-        }
-
-        if (
-            dadosPrimeiroAcesso.NovaSenha.Length < 6
-        )
-        {
-            return BadRequest(
-                "A nova senha deve ter pelo menos 6 caracteres."
-            );
-        }
-
-        var academico =
-            await _context.Academicos
-                .FirstOrDefaultAsync(a =>
-                    a.Ativo &&
-                    a.Email ==
-                        dadosPrimeiroAcesso.Email &&
-                    a.PrimeiroAcessoToken ==
-                        dadosPrimeiroAcesso.Token &&
-                    a.PrimeiroAcessoTokenExpiraEm >
-                        DateTime.UtcNow
-                );
-
-        if (academico == null)
-        {
-            return NotFound(
-                "Usuário não encontrado."
-            );
-        }
-
-        if (!academico.PrecisaDefinirSenha)
-        {
-            return BadRequest(
-                "A senha deste usuário já foi definida."
-            );
-        }
-
-        academico.Senha =
-            _passwordHasher.HashPassword(
-                academico,
-                dadosPrimeiroAcesso.NovaSenha
-            );
-
-        academico.PrecisaDefinirSenha = false;
-
-        academico.PrimeiroAcessoToken = null;
-
-        academico.PrimeiroAcessoTokenExpiraEm =
-            null;
-
-        await _context.SaveChangesAsync();
-
-        return Ok(
-            "Senha definida com sucesso. Faça login para continuar."
+        return BadRequest(
+            "Token inválido ou expirado."
         );
     }
+
+    return Ok(
+        "Senha definida com sucesso."
+    );
+}
 
     private PasswordVerificationResult VerificarSenha(
         Academico academico,
@@ -299,26 +242,24 @@ public async Task<IActionResult> Login(
     }
 
     // Exclui acadêmico
-    [Authorize(Roles = "Admin")]
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id)
+[Authorize(Roles = "Admin")]
+[HttpDelete("{id}")]
+public async Task<IActionResult>
+    Delete(int id)
+{
+    var sucesso =
+        await _academicoService
+            .DeletarAsync(id);
+
+    if (!sucesso)
     {
-        var academico =
-            await _context.Academicos.FindAsync(id);
-
-        if (academico == null || !academico.Ativo)
-        {
-            return NotFound(
-                "Acadêmico não encontrado."
-            );
-        }
-
-        academico.Ativo = false;
-
-        await _context.SaveChangesAsync();
-
-        return NoContent();
+        return NotFound(
+            "Acadêmico não encontrado."
+        );
     }
+
+    return NoContent();
+}
 
     private readonly IAcademicoService
     _academicoService;

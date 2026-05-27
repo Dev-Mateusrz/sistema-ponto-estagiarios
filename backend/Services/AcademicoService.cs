@@ -157,4 +157,171 @@ public class AcademicoService
             Ativo = academico.Ativo
         };
     }
+
+    public async Task<AcademicoResponseDTO?> CriarAsync(
+        CriarAcademicoRequest dadosCadastro
+    )
+    {
+        if (string.IsNullOrWhiteSpace(dadosCadastro.Nome))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(dadosCadastro.Email))
+        {
+            return null;
+        }
+
+        var emailJaExiste =
+            await _context.Academicos.AnyAsync(a =>
+                a.Ativo &&
+                a.Email == dadosCadastro.Email
+            );
+
+        if (emailJaExiste)
+        {
+            return null;
+        }
+
+        var matriculaJaExiste =
+            await _context.Academicos.AnyAsync(a =>
+                a.Ativo &&
+                a.Matricula ==
+                    dadosCadastro.Matricula
+            );
+
+        if (matriculaJaExiste)
+        {
+            return null;
+        }
+
+        var academico = new Academico
+        {
+            PrimeiroAcessoToken =
+                Guid.NewGuid().ToString(),
+
+            PrimeiroAcessoTokenExpiraEm =
+                DateTime.UtcNow.AddHours(24),
+
+            Matricula =
+                dadosCadastro.Matricula,
+
+            Nome = dadosCadastro.Nome,
+
+            Email = dadosCadastro.Email,
+
+            EhAdmin =
+                dadosCadastro.EhAdmin,
+
+            HorarioEntrada =
+                dadosCadastro.HorarioEntrada,
+
+            HorarioSaida =
+                dadosCadastro.HorarioSaida,
+
+            PrecisaDefinirSenha = true,
+
+            Ativo = true
+        };
+
+        _context.Academicos.Add(academico);
+
+        await _context.SaveChangesAsync();
+
+        return new AcademicoResponseDTO
+        {
+            Id = academico.Id,
+
+            Matricula =
+                academico.Matricula,
+
+            Nome = academico.Nome,
+
+            Email = academico.Email,
+
+            EhAdmin =
+                academico.EhAdmin,
+
+            HorarioEntrada =
+                academico.HorarioEntrada,
+
+            HorarioSaida =
+                academico.HorarioSaida,
+
+            PrecisaDefinirSenha =
+                academico.PrecisaDefinirSenha,
+
+            Ativo = academico.Ativo,
+
+            PrimeiroAcessoToken =
+                academico.PrimeiroAcessoToken
+        };
+    }
+
+    public async Task<bool>
+    DefinirPrimeiraSenhaAsync(
+        PrimeiroAcessoRequest dadosPrimeiroAcesso
+        
+    )
+    
+{
+    var academico =
+        await _context.Academicos
+            .FirstOrDefaultAsync(a =>
+                a.Ativo &&
+                a.Email ==
+                    dadosPrimeiroAcesso.Email &&
+                a.PrimeiroAcessoToken ==
+                    dadosPrimeiroAcesso.Token &&
+                a.PrimeiroAcessoTokenExpiraEm >
+                    DateTime.UtcNow
+            );
+
+    if (academico == null)
+    {
+        return false;
+    }
+
+    academico.Senha =
+        _passwordHasher.HashPassword(
+            academico,
+            dadosPrimeiroAcesso.NovaSenha
+        );
+
+    academico.PrecisaDefinirSenha =
+        false;
+
+    academico.PrimeiroAcessoToken =
+        null;
+
+    academico.PrimeiroAcessoTokenExpiraEm =
+        null;
+
+    await _context.SaveChangesAsync();
+
+    return true;
+}
+
+public async Task<bool> DeletarAsync(
+    int id
+)
+{
+    var academico =
+        await _context.Academicos
+            .FindAsync(id);
+
+    if (
+        academico == null ||
+        !academico.Ativo
+    )
+    {
+        return false;
+    }
+
+    academico.Ativo = false;
+
+    await _context.SaveChangesAsync();
+
+    return true;
+}
 }

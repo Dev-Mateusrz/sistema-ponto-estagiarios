@@ -19,4 +19,6 @@ public class AcademicoResponseDTO
     public bool PrecisaDefinirSenha { get; set; }
 
     public bool Ativo { get; set; }
+
+    public string? PrimeiroAcessoToken { get; set; }
 }

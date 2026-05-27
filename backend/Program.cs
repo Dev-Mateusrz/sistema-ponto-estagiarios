@@ -1,3 +1,4 @@
+
 using backend.Services;
 using backend.Services.Interfaces;
 using Microsoft.AspNetCore.RateLimiting;
@@ -119,6 +120,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<
     IAcademicoService,
     AcademicoService
+>();
+
+builder.Services.AddScoped<
+    IRegistroPontoService,
+    RegistroPontoService
 >();
 
 var app = builder.Build();

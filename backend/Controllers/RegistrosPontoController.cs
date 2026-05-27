@@ -1,3 +1,5 @@
+
+using backend.Services.Interfaces;
 using backend.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,10 +16,18 @@ public class RegistrosPontoController : ControllerBase
 {
     private readonly AppDbContext _context;
 
-    public RegistrosPontoController(AppDbContext context)
-    {
-        _context = context;
-    }
+    public RegistrosPontoController(
+    AppDbContext context,
+
+    IRegistroPontoService
+        registroPontoService
+)
+{
+    _context = context;
+
+    _registroPontoService =
+        registroPontoService;
+}
 
     private int? ObterAcademicoIdLogado()
     {
@@ -56,169 +66,85 @@ public async Task<IActionResult> Get(
     var usuarioEhAdmin =
         UsuarioEhAdmin();
 
-    var query = _context.RegistrosPonto
-        .Include(r => r.Academico)
-        .AsQueryable();
-
-    if (!usuarioEhAdmin)
-    {
-        query = query.Where(r =>
-            r.AcademicoId ==
-            academicoIdLogado.Value
-        );
-    }
-
-    if (dataInicio.HasValue)
-    {
-        query = query.Where(r =>
-            r.HoraEntrada >=
-            dataInicio.Value
-        );
-    }
-
-    if (dataFim.HasValue)
-    {
-        query = query.Where(r =>
-            r.HoraEntrada <=
-            dataFim.Value
-        );
-    }
-
-    var registros = await query
-        .OrderByDescending(r => r.HoraEntrada)
-        .Select(r => new RegistroPontoResponseDTO
-        {
-            Id = r.Id,
-
-            AcademicoId =
-                r.AcademicoId,
-
-            NomeAcademico =
-    r.Academico != null
-        ? r.Academico.Nome
-        : "Acadêmico não encontrado",
-
-            Entrada =
-                r.HoraEntrada,
-
-            Saida =
-                r.HoraSaida,
-
-            TotalHoras =
-                r.TotalTrabalhado
-        })
-        .ToListAsync();
+    var registros =
+        await _registroPontoService
+            .ObterRegistrosAsync(
+                academicoIdLogado.Value,
+                usuarioEhAdmin,
+                dataInicio,
+                dataFim
+            );
 
     return Ok(registros);
 }
 
     [Authorize]
-    [HttpPost("entrada")]
-    public async Task<IActionResult> RegistrarEntrada()
+[HttpPost("entrada")]
+public async Task<IActionResult>
+    RegistrarEntrada()
+{
+    var academicoIdLogado =
+        ObterAcademicoIdLogado();
+
+    if (academicoIdLogado == null)
     {
-        var academicoId = ObterAcademicoIdLogado();
-
-        if (academicoId == null)
-        {
-            return Unauthorized();
-        }
-
-        var academicoExiste = await _context.Academicos.AnyAsync(a =>
-            a.Id == academicoId.Value &&
-            a.Ativo
+        return Unauthorized(
+            "Usuário não autenticado."
         );
-
-        if (!academicoExiste)
-        {
-            return NotFound("Academico nao encontrado.");
-        }
-
-        var hoje = DateTime.Today;
-
-        var registrosHoje = await _context.RegistrosPonto.CountAsync(r =>
-            r.AcademicoId == academicoId.Value &&
-            r.Data.Date == hoje
-        );
-
-        if (registrosHoje >= 2)
-        {
-            return BadRequest("Limite diário atingido: máximo de 2 expedientes por dia.");
-        }
-
-        var entradaAberta = await _context.RegistrosPonto.AnyAsync(r =>
-            r.AcademicoId == academicoId.Value &&
-            r.Data.Date == hoje &&
-            r.HoraSaida == null
-        );
-
-        if (entradaAberta)
-        {
-            return BadRequest("Já existe uma entrada aberta para este acadêmico.");
-        }
-
-        var registro = new RegistroPonto
-        {
-            AcademicoId = academicoId.Value,
-            Data = DateTime.Now.Date,
-            HoraEntrada = DateTime.Now
-        };
-
-        _context.RegistrosPonto.Add(registro);
-        await _context.SaveChangesAsync();
-
-        return Ok(registro);
     }
+
+    var sucesso =
+        await _registroPontoService
+            .RegistrarEntradaAsync(
+                academicoIdLogado.Value
+            );
+
+    if (!sucesso)
+    {
+        return BadRequest(
+            "Não foi possível registrar entrada."
+        );
+    }
+
+    return Ok(
+        "Entrada registrada com sucesso."
+    );
+}
 
     [Authorize]
-    [HttpPost("saida")]
-    public async Task<IActionResult> RegistrarSaida()
+[HttpPost("saida")]
+public async Task<IActionResult>
+    RegistrarSaida()
+{
+    var academicoIdLogado =
+        ObterAcademicoIdLogado();
+
+    if (academicoIdLogado == null)
     {
-        var academicoId = ObterAcademicoIdLogado();
-
-        if (academicoId == null)
-        {
-            return Unauthorized();
-        }
-
-        var hoje = DateTime.Today;
-
-        var academicoExiste = _context.Academicos.Any(a =>
-            a.Id == academicoId.Value &&
-            a.Ativo
+        return Unauthorized(
+            "Usuário não autenticado."
         );
-
-        if (!academicoExiste)
-        {
-            return NotFound("Academico nao encontrado.");
-        }
-
-
-        var registro = await _context.RegistrosPonto
-            .Where(r =>
-                r.AcademicoId == academicoId.Value &&
-                r.Data.Date == hoje &&
-                r.HoraSaida == null
-            )
-            .OrderByDescending(r => r.HoraEntrada)
-            .FirstOrDefaultAsync();
-
-        if (registro == null)
-        {
-            return NotFound("Entrada não encontrada.");
-        }
-
-        if (registro.HoraEntrada == null)
-        {
-            return BadRequest("Registro de entrada invalido.");
-        }
-
-        var horaSaida = DateTime.Now;
-
-        registro.HoraSaida = horaSaida;
-        registro.TotalTrabalhado = horaSaida - registro.HoraEntrada.Value;
-
-       await _context.SaveChangesAsync();
-
-        return Ok(registro);
     }
+
+    var sucesso =
+        await _registroPontoService
+            .RegistrarSaidaAsync(
+                academicoIdLogado.Value
+            );
+
+    if (!sucesso)
+    {
+        return BadRequest(
+            "Não foi possível registrar saída."
+        );
+    }
+
+    return Ok(
+        "Saída registrada com sucesso."
+    );
+}
+
+    private readonly IRegistroPontoService
+    _registroPontoService;
+    
 }
