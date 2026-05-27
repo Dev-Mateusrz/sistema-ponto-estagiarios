@@ -1,9 +1,12 @@
+import { useAuth } from "../hooks/useAuth";
+
 import { apiFetch } from "../lib/api";
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 function Login() {
+  const { login } = useAuth();
   const [modoPrimeiroAcesso, setModoPrimeiroAcesso] = useState(false);
 
   const [email, setEmail] = useState("");
@@ -49,12 +52,7 @@ function Login() {
     if (resposta.ok) {
       const usuario = await resposta.json();
 
-      localStorage.setItem("token", usuario.token);
-
-      localStorage.setItem(
-        "usuario",
-        JSON.stringify(usuario),
-      );
+      login(usuario);
 
       if (usuario.ehAdmin) {
         navigate("/admin");
