@@ -1,3 +1,5 @@
+using backend.Services.Interfaces;
+using backend.DTOs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
@@ -23,12 +25,16 @@ public class AcademicosController : ControllerBase
     private readonly PasswordHasher<Academico> _passwordHasher = new();
 
     public AcademicosController(
-        AppDbContext context,
-        IConfiguration configuration
-    )
+    AppDbContext context,
+
+    IConfiguration configuration,
+
+    IAcademicoService academicoService
+)
     {
         _context = context;
         _configuration = configuration;
+        _academicoService = academicoService;
     }
 
     // Retorna todos os acadêmicos cadastrados
@@ -38,18 +44,27 @@ public class AcademicosController : ControllerBase
     {
         var academicos = await _context.Academicos
             .Where(a => a.Ativo)
-            .Select(a => new
-            {
-                a.Id,
-                a.Matricula,
-                a.Nome,
-                a.Email,
-                a.EhAdmin,
-                a.HorarioEntrada,
-                a.HorarioSaida,
-                a.PrecisaDefinirSenha,
-                a.Ativo
-            })
+            .Select(a => new AcademicoResponseDTO
+{
+    Id = a.Id,
+
+    Matricula = a.Matricula,
+
+    Nome = a.Nome,
+
+    Email = a.Email,
+
+    EhAdmin = a.EhAdmin,
+
+    HorarioEntrada = a.HorarioEntrada,
+
+    HorarioSaida = a.HorarioSaida,
+
+    PrecisaDefinirSenha =
+        a.PrecisaDefinirSenha,
+
+    Ativo = a.Ativo
+})
             .ToListAsync();
 
         return Ok(academicos);
@@ -159,139 +174,25 @@ public class AcademicosController : ControllerBase
 
     // Realiza login
     [AllowAnonymous]
-    [EnableRateLimiting("login")]
-    [HttpPost("login")]
-    public async Task<IActionResult> Login(
-        LoginRequest dadosLogin
-    )
+[EnableRateLimiting("login")]
+[HttpPost("login")]
+public async Task<IActionResult> Login(
+    LoginRequest dadosLogin
+)
+{
+    var resultado =
+        await _academicoService
+            .LoginAsync(dadosLogin);
+
+    if (resultado == null)
     {
-        var academico =
-            await _context.Academicos
-                .FirstOrDefaultAsync(a =>
-                    a.Ativo &&
-                    a.Email == dadosLogin.Email
-                );
-
-        if (academico == null || !academico.Ativo)
-        {
-            return Unauthorized(
-                "Email ou senha inválidos."
-            );
-        }
-
-        if (academico.PrecisaDefinirSenha)
-        {
-            return Unauthorized(
-                "Email ou senha inválidos."
-            );
-        }
-
-        var resultadoSenha = VerificarSenha(
-            academico,
-            dadosLogin.Senha
+        return Unauthorized(
+            "Email ou senha inválidos."
         );
-
-        if (
-            resultadoSenha ==
-            PasswordVerificationResult.Failed
-        )
-        {
-            return Unauthorized(
-                "Email ou senha inválidos."
-            );
-        }
-
-        if (
-            resultadoSenha ==
-            PasswordVerificationResult.SuccessRehashNeeded
-        )
-        {
-            academico.Senha =
-                _passwordHasher.HashPassword(
-                    academico,
-                    dadosLogin.Senha
-                );
-
-            await _context.SaveChangesAsync();
-        }
-
-        var role = academico.EhAdmin
-            ? "Admin"
-            : "Academico";
-
-        var claims = new[]
-        {
-            new Claim(
-                ClaimTypes.NameIdentifier,
-                academico.Id.ToString()
-            ),
-
-            new Claim(
-                ClaimTypes.Name,
-                academico.Nome
-            ),
-
-            new Claim(
-                ClaimTypes.Email,
-                academico.Email
-            ),
-
-            new Claim(
-                ClaimTypes.Role,
-                role
-            )
-        };
-
-        var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(
-                _configuration["Jwt:Key"]!
-            )
-        );
-
-        var credentials = new SigningCredentials(
-            key,
-            SecurityAlgorithms.HmacSha256
-        );
-
-        var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-
-            audience: _configuration["Jwt:Audience"],
-
-            claims: claims,
-
-            expires: DateTime.UtcNow.AddHours(2),
-
-            signingCredentials: credentials
-        );
-
-        var tokenString =
-            new JwtSecurityTokenHandler()
-                .WriteToken(token);
-
-        return Ok(new
-        {
-            token = tokenString,
-
-            academico.Id,
-
-            academico.Matricula,
-
-            academico.Nome,
-
-            academico.Email,
-
-            academico.EhAdmin,
-
-            academico.HorarioEntrada,
-
-            academico.HorarioSaida,
-
-            academico.PrecisaDefinirSenha,
-
-            academico.Ativo
-        });
     }
+
+    return Ok(resultado);
+}
 
     // Primeiro acesso
     [AllowAnonymous]
@@ -418,4 +319,7 @@ public class AcademicosController : ControllerBase
 
         return NoContent();
     }
+
+    private readonly IAcademicoService
+    _academicoService;
 }

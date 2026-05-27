@@ -1,3 +1,5 @@
+using backend.Services;
+using backend.Services.Interfaces;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Identity;
@@ -113,6 +115,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(
     builder.Configuration.GetConnectionString("DefaultConnection")
 ));
+
+builder.Services.AddScoped<
+    IAcademicoService,
+    AcademicoService
+>();
 
 var app = builder.Build();
 

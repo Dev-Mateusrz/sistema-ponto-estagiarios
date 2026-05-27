@@ -1,3 +1,4 @@
+using backend.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
@@ -36,70 +37,80 @@ public class RegistrosPontoController : ControllerBase
     }
 
     [Authorize]
-
-    [HttpGet]
-    public async Task<IActionResult> Get(
-        DateTime? dataInicial,
-        DateTime? dataFinal
+[HttpGet]
+public async Task<IActionResult> Get(
+    DateTime? dataInicio,
+    DateTime? dataFim
 )
+{
+    var academicoIdLogado =
+        ObterAcademicoIdLogado();
+
+    if (academicoIdLogado == null)
     {
-        var academicoIdLogado = ObterAcademicoIdLogado();
-
-        if (academicoIdLogado == null)
-        {
-            return Unauthorized();
-        }
-
-        var usuarioEhAdmin = UsuarioEhAdmin();
-
-        var query = _context.RegistrosPonto
-    .Include(r => r.Academico)
-    .Where(r =>
-        usuarioEhAdmin ||
-        r.AcademicoId == academicoIdLogado.Value
-    );
-
-if (dataInicial.HasValue)
-{
-    query = query.Where(r =>
-        r.Data.Date >= dataInicial.Value.Date
-    );
-}
-
-if (dataFinal.HasValue)
-{
-    query = query.Where(r =>
-        r.Data.Date <= dataFinal.Value.Date
-    );
-}
-
-       var registros = query
-            .Include(r => r.Academico)
-            .Where(r => usuarioEhAdmin || r.AcademicoId == academicoIdLogado.Value)
-            .OrderByDescending(r => r.HoraEntrada)
-            .Select(r => new
-            {
-                r.Id,
-                r.AcademicoId,
-                r.Data,
-                r.HoraEntrada,
-                r.HoraSaida,
-                r.TotalTrabalhado,
-                Academico = r.Academico == null ? null : new
-{
-    r.Academico.Id,
-    r.Academico.Matricula,
-    r.Academico.Nome,
-    r.Academico.Email,
-                    r.Academico.HorarioEntrada,
-                    r.Academico.HorarioSaida,
-                    r.Academico.Ativo
-                }
-            })
-            .ToListAsync();
-
-        return Ok(registros);
+        return Unauthorized(
+            "Usuário não autenticado."
+        );
     }
+
+    var usuarioEhAdmin =
+        UsuarioEhAdmin();
+
+    var query = _context.RegistrosPonto
+        .Include(r => r.Academico)
+        .AsQueryable();
+
+    if (!usuarioEhAdmin)
+    {
+        query = query.Where(r =>
+            r.AcademicoId ==
+            academicoIdLogado.Value
+        );
+    }
+
+    if (dataInicio.HasValue)
+    {
+        query = query.Where(r =>
+            r.HoraEntrada >=
+            dataInicio.Value
+        );
+    }
+
+    if (dataFim.HasValue)
+    {
+        query = query.Where(r =>
+            r.HoraEntrada <=
+            dataFim.Value
+        );
+    }
+
+    var registros = await query
+        .OrderByDescending(r => r.HoraEntrada)
+        .Select(r => new RegistroPontoResponseDTO
+        {
+            Id = r.Id,
+
+            AcademicoId =
+                r.AcademicoId,
+
+            NomeAcademico =
+    r.Academico != null
+        ? r.Academico.Nome
+        : "Acadêmico não encontrado",
+
+            Entrada =
+                r.HoraEntrada,
+
+            Saida =
+                r.HoraSaida,
+
+            TotalHoras =
+                r.TotalTrabalhado
+        })
+        .ToListAsync();
+
+    return Ok(registros);
+}
 
     [Authorize]
     [HttpPost("entrada")]
