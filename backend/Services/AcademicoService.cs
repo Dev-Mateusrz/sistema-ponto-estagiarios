@@ -324,4 +324,55 @@ public async Task<bool> DeletarAsync(
 
     return true;
 }
+
+public async Task<
+    PagedResponseDTO<AcademicoResponseDTO>
+> ObterPaginadoAsync(
+    int page,
+    int pageSize
+)
+{
+    var query =
+        _context.Academicos
+            .Where(a => a.Ativo);
+
+    var totalItems =
+        await query.CountAsync();
+
+    var academicos =
+        await query
+            .OrderBy(a => a.Nome)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(a =>
+                new AcademicoResponseDTO
+                {
+                    Id = a.Id,
+                    Matricula = a.Matricula,
+                    Nome = a.Nome,
+                    Email = a.Email,
+                    EhAdmin = a.EhAdmin,
+                    HorarioEntrada =
+                        a.HorarioEntrada,
+                    HorarioSaida =
+                        a.HorarioSaida,
+                    PrecisaDefinirSenha =
+                        a.PrecisaDefinirSenha,
+                    Ativo = a.Ativo
+                })
+            .ToListAsync();
+
+    return new PagedResponseDTO<
+        AcademicoResponseDTO
+    >
+    {
+        Data = academicos,
+
+        Page = page,
+
+        PageSize = pageSize,
+
+        TotalItems = totalItems
+    };
+}
 }

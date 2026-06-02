@@ -19,13 +19,18 @@ public class RegistroPontoService
         _context = context;
     }
 
-    public async Task<
-        List<RegistroPontoResponseDTO>
-    > ObterRegistrosAsync(
+public async Task<
+    PagedResponseDTO<
+        RegistroPontoResponseDTO
+    >
+> ObterRegistrosAsync(
         int academicoIdLogado,
         bool usuarioEhAdmin,
         DateTime? dataInicio,
-        DateTime? dataFim
+        DateTime? dataFim,
+        int page,
+        int pageSize
+        
         
     )
     
@@ -57,11 +62,16 @@ public class RegistroPontoService
                 dataFim.Value
             );
         }
+        var totalItems =
+        await query.CountAsync();
 
-        return await query
+        var registros =
+        await query
             .OrderByDescending(r =>
                 r.HoraEntrada
             )
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(r =>
                 new RegistroPontoResponseDTO
                 {
@@ -89,8 +99,21 @@ public class RegistroPontoService
             
             .ToListAsync();
 
-            
+            return new PagedResponseDTO<
+                RegistroPontoResponseDTO
+            >
+            {
+                Data = registros,
+
+                Page = page,
+
+                PageSize = pageSize,
+
+                TotalItems = totalItems
+            };
     }
+
+    
 
     public async Task<bool>
     RegistrarEntradaAsync(

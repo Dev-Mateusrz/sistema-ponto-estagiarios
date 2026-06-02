@@ -4,15 +4,7 @@ import {
   useState,
 } from "react";
 
-type Usuario = {
-  token: string;
-
-  ehAdmin: boolean;
-
-  nome?: string;
-
-  email?: string;
-};
+import type { Usuario } from "../types/usuario";
 
 type AuthContextType = {
   usuario: Usuario | null;

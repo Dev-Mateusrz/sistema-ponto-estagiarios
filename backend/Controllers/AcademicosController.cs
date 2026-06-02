@@ -37,37 +37,22 @@ public class AcademicosController : ControllerBase
         _academicoService = academicoService;
     }
 
-    // Retorna todos os acadêmicos cadastrados
+    // Retorna a lista de acadêmicos cadastrados
     [Authorize(Roles = "Admin")]
     [HttpGet]
-    public async Task<IActionResult> Get()
+    public async Task<IActionResult> Get(
+        int page = 1,
+        int pageSize = 10
+    )
     {
-        var academicos = await _context.Academicos
-            .Where(a => a.Ativo)
-            .Select(a => new AcademicoResponseDTO
-{
-    Id = a.Id,
+        var resultado =
+            await _academicoService
+                .ObterPaginadoAsync(
+                    page,
+                    pageSize
+                );
 
-    Matricula = a.Matricula,
-
-    Nome = a.Nome,
-
-    Email = a.Email,
-
-    EhAdmin = a.EhAdmin,
-
-    HorarioEntrada = a.HorarioEntrada,
-
-    HorarioSaida = a.HorarioSaida,
-
-    PrecisaDefinirSenha =
-        a.PrecisaDefinirSenha,
-
-    Ativo = a.Ativo
-})
-            .ToListAsync();
-
-        return Ok(academicos);
+        return Ok(resultado);
     }
 
     // Cadastra um novo acadêmico ou administrador

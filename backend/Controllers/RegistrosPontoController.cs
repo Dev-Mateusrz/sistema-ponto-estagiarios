@@ -50,7 +50,12 @@ public class RegistrosPontoController : ControllerBase
 [HttpGet]
 public async Task<IActionResult> Get(
     DateTime? dataInicio,
-    DateTime? dataFim
+
+    DateTime? dataFim,
+
+    int page = 1,
+
+    int pageSize = 10
 )
 {
     var academicoIdLogado =
@@ -68,12 +73,19 @@ public async Task<IActionResult> Get(
 
     var registros =
         await _registroPontoService
-            .ObterRegistrosAsync(
-                academicoIdLogado.Value,
-                usuarioEhAdmin,
-                dataInicio,
-                dataFim
-            );
+    .ObterRegistrosAsync(
+        academicoIdLogado.Value,
+
+        usuarioEhAdmin,
+
+        dataInicio,
+
+        dataFim,
+
+        page,
+
+        pageSize
+    );
 
     return Ok(registros);
 }

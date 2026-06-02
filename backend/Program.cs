@@ -1,4 +1,5 @@
 
+using backend.Middlewares;
 using backend.Services;
 using backend.Services.Interfaces;
 using Microsoft.AspNetCore.RateLimiting;
@@ -128,6 +129,10 @@ builder.Services.AddScoped<
 >();
 
 var app = builder.Build();
+
+app.UseMiddleware<
+    ExceptionMiddleware
+>();
 
 
 app.UseSwagger();

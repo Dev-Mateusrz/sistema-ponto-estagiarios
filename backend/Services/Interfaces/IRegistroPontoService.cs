@@ -4,12 +4,16 @@ namespace backend.Services.Interfaces;
 
 public interface IRegistroPontoService
 {
-    Task<List<RegistroPontoResponseDTO>>
-        ObterRegistrosAsync(
+    Task<PagedResponseDTO<
+    RegistroPontoResponseDTO>>
+    ObterRegistrosAsync(
             int academicoIdLogado,
             bool usuarioEhAdmin,
             DateTime? dataInicio,
-            DateTime? dataFim
+            DateTime? dataFim,
+            int page,
+            int pageSize
+            
         );
 
     Task<bool> RegistrarEntradaAsync(

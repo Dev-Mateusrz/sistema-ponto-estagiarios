@@ -20,5 +20,10 @@ public interface IAcademicoService
     Task<bool> DeletarAsync(int id);
 
     
+    Task<PagedResponseDTO<AcademicoResponseDTO>>
+    ObterPaginadoAsync(
+        int page,
+        int pageSize
+    );
 }
 
