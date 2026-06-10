@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../lib/api";
 
 function Login() {
   const [modoPrimeiroAcesso, setModoPrimeiroAcesso] = useState(false);
@@ -13,6 +14,25 @@ function Login() {
   const [confirmarSenha, setConfirmarSenha] = useState("");
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const parametros = new URLSearchParams(window.location.search);
+    const primeiroAcesso = parametros.get("primeiroAcesso");
+    const emailParam = parametros.get("email");
+    const tokenParam = parametros.get("token");
+
+    if (primeiroAcesso === "1") {
+      setModoPrimeiroAcesso(true);
+    }
+
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+
+    if (tokenParam) {
+      setToken(tokenParam);
+    }
+  }, []);
 
   function limparCamposSenha() {
     setSenha("");
@@ -28,8 +48,8 @@ function Login() {
   }
 
   async function fazerLogin() {
-    const resposta = await fetch(
-      "http://localhost:5294/academicos/login",
+    const resposta = await apiFetch(
+      "/academicos/login",
       {
         method: "POST",
 
@@ -46,13 +66,6 @@ function Login() {
 
     if (resposta.ok) {
       const usuario = await resposta.json();
-
-      localStorage.setItem("token", usuario.token);
-
-      localStorage.setItem(
-        "usuario",
-        JSON.stringify(usuario),
-      );
 
       if (usuario.ehAdmin) {
         navigate("/admin");
@@ -75,8 +88,8 @@ function Login() {
       return;
     }
 
-    const resposta = await fetch(
-      "http://localhost:5294/academicos/primeiro-acesso",
+    const resposta = await apiFetch(
+      "/academicos/primeiro-acesso",
       {
         method: "POST",
 

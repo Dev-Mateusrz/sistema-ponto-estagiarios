@@ -122,7 +122,7 @@ if (dataFinal.HasValue)
             return NotFound("Academico nao encontrado.");
         }
 
-        var hoje = DateTime.Today;
+        var hoje = DateTime.UtcNow.Date;
 
         var registrosHoje = _context.RegistrosPonto.Count(r =>
             r.AcademicoId == academicoId.Value &&
@@ -148,8 +148,8 @@ if (dataFinal.HasValue)
         var registro = new RegistroPonto
         {
             AcademicoId = academicoId.Value,
-            Data = DateTime.Now.Date,
-            HoraEntrada = DateTime.Now
+            Data = DateTime.UtcNow.Date,
+            HoraEntrada = DateTime.UtcNow
         };
 
         _context.RegistrosPonto.Add(registro);
@@ -169,7 +169,7 @@ if (dataFinal.HasValue)
             return Unauthorized();
         }
 
-        var hoje = DateTime.Today;
+        var hoje = DateTime.UtcNow.Date;
 
         var academicoExiste = _context.Academicos.Any(a =>
             a.Id == academicoId.Value &&
@@ -201,7 +201,7 @@ if (dataFinal.HasValue)
             return BadRequest("Registro de entrada invalido.");
         }
 
-        var horaSaida = DateTime.Now;
+        var horaSaida = DateTime.UtcNow;
 
         registro.HoraSaida = horaSaida;
         registro.TotalTrabalhado = horaSaida - registro.HoraEntrada.Value;

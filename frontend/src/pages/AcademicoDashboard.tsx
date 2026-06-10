@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import jsPDF from "jspdf";
+import { apiFetch } from "../lib/api";
 
 type Usuario = {
   id: number;
@@ -27,32 +28,36 @@ function AcademicoDashboard() {
   const [dataInicial, setDataInicial] = useState("");
   const [dataFinal, setDataFinal] = useState("");
 
-  function obterHeadersAutenticados() {
-    return {
-      Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
-    };
+  useEffect(() => {
+  async function carregarDados() {
+    try {
+      const resposta = await apiFetch("/academicos/me");
+
+      if (!resposta.ok) {
+        return;
+      }
+
+      const usuarioLogado = await resposta.json();
+
+      setUsuario(usuarioLogado);
+
+      carregarRegistros();
+    } catch (erro) {
+      console.error(erro);
+    }
   }
 
-  useEffect(() => {
-    const usuarioSalvo = localStorage.getItem("usuario");
+  carregarDados();
 
-    if (usuarioSalvo) {
-      const usuarioConvertido = JSON.parse(usuarioSalvo);
-      setUsuario(usuarioConvertido);
-      carregarRegistros();
-    }
+  const timer = setInterval(() => {
+    setHoraAtual(new Date());
+  }, 1000);
 
-    const timer = setInterval(() => {
-      setHoraAtual(new Date());
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
+  return () => clearInterval(timer);
+}, []);
 
   function carregarRegistros() {
-    fetch("http://localhost:5294/registros-ponto", {
-      headers: obterHeadersAutenticados(),
-    })
+    apiFetch("/registros-ponto")
       .then((res) => res.json())
       .then((dados) => {
         setRegistros(dados);
@@ -62,9 +67,8 @@ function AcademicoDashboard() {
   async function registrarEntrada() {
     if (!usuario) return;
 
-    const resposta = await fetch("http://localhost:5294/registros-ponto/entrada", {
+    const resposta = await apiFetch("/registros-ponto/entrada", {
       method: "POST",
-      headers: obterHeadersAutenticados(),
     });
 
     if (resposta.ok) {
@@ -79,9 +83,8 @@ function AcademicoDashboard() {
   async function registrarSaida() {
     if (!usuario) return;
 
-    const resposta = await fetch("http://localhost:5294/registros-ponto/saida", {
+    const resposta = await apiFetch("/registros-ponto/saida", {
       method: "POST",
-      headers: obterHeadersAutenticados(),
     });
 
     if (resposta.ok) {

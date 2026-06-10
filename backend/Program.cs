@@ -8,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using System.Security.Claims;
+using backend.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -83,6 +85,15 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddScoped<IPasswordHasher<Academico>, PasswordHasher<Academico>>();
 
+var jwtKey = builder.Configuration["Jwt:Key"];
+
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    throw new InvalidOperationException(
+        "Configure Jwt:Key em User Secrets ou variável de ambiente."
+    );
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -99,19 +110,71 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     ValidAudience = builder.Configuration["Jwt:Audience"],
 
     IssuerSigningKey = new SymmetricSecurityKey(
-        Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)
+        Encoding.UTF8.GetBytes(jwtKey)
     ),
 
     ClockSkew = TimeSpan.Zero
 };
+
+       options.Events = new JwtBearerEvents
+       {
+           OnMessageReceived = context =>
+           {
+               if (
+                   string.IsNullOrWhiteSpace(context.Token) &&
+                   context.Request.Cookies.TryGetValue(
+                       AuthCookieNames.AccessToken,
+                       out var cookieToken
+                   )
+               )
+               {
+                   context.Token = cookieToken;
+               }
+
+               return Task.CompletedTask;
+           },
+
+           OnTokenValidated = async context =>
+           {
+               var idClaim = context.Principal?
+                   .FindFirstValue(ClaimTypes.NameIdentifier);
+
+               if (!int.TryParse(idClaim, out var academicoId))
+               {
+                   context.Fail("Token sem identificador de usuário.");
+                   return;
+               }
+
+               var dbContext = context.HttpContext.RequestServices
+                   .GetRequiredService<AppDbContext>();
+
+               var usuarioAtivo = await dbContext.Academicos
+                   .AnyAsync(a => a.Id == academicoId && a.Ativo);
+
+               if (!usuarioAtivo)
+               {
+                   context.Fail("Usuário inativo.");
+               }
+           }
+       };
     });
 
 builder.Services.AddAuthorization();
 
+var defaultConnection =
+    builder.Configuration.GetConnectionString("DefaultConnection");
+
+if (string.IsNullOrWhiteSpace(defaultConnection))
+{
+    throw new InvalidOperationException(
+        "Configure ConnectionStrings:DefaultConnection em User Secrets ou variável de ambiente."
+    );
+}
+
 //Configura conexão com SQL server
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(
-    builder.Configuration.GetConnectionString("DefaultConnection")
+    defaultConnection
 ));
 
 var app = builder.Build();
