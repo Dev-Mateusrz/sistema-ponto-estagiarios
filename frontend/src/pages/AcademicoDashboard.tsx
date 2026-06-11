@@ -95,6 +95,16 @@ function AcademicoDashboard() {
     }
   }
 
+  async function logout() {
+  try {
+    await apiFetch("/academicos/logout", {
+      method: "POST",
+    });
+  } finally {
+    window.location.href = "/";
+  }
+}
+
   function formatarHora(data: string | null) {
     if (!data) return "--:--";
 
@@ -172,6 +182,16 @@ function AcademicoDashboard() {
         leitor.readAsDataURL(blob);
       });
     }
+
+    async function logout() {
+  try {
+    await apiFetch("/academicos/logout", {
+      method: "POST",
+    });
+  } finally {
+    window.location.href = "/";
+  }
+}
 
     function desenharCabecalho(pdf: jsPDF, logoRelatorio?: string) {
       pdf.setFillColor(255, 255, 255);
@@ -402,23 +422,32 @@ function AcademicoDashboard() {
     <div className="min-h-screen bg-slate-50">
       <header className="bg-gradient-to-r from-blue-900 via-blue-700 to-sky-500 text-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-8 py-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest">
-              Prefeitura do Rio · Subsecretaria de Gestão
-            </p>
+  <div>
+    <p className="text-xs font-semibold uppercase tracking-widest">
+      Prefeitura do Rio · Subsecretaria de Gestão
+    </p>
 
-            <h1 className="text-xl font-bold">
-              Ponto <span className="text-sky-300">Digital</span>
-            </h1>
-          </div>
+    <h1 className="text-xl font-bold">
+      Ponto <span className="text-sky-300">Digital</span>
+    </h1>
+  </div>
 
-          <p className="text-xl font-bold">
-            {horaAtual.toLocaleTimeString("pt-BR", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
-        </div>
+  <div className="flex items-center gap-4">
+    <p className="text-xl font-bold">
+      {horaAtual.toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}
+    </p>
+
+    <button
+      onClick={logout}
+      className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold transition hover:bg-white/20"
+    >
+      Sair
+    </button>
+  </div>
+</div>
       </header>
 
       <main className="mx-auto max-w-7xl px-8 py-10">

@@ -116,6 +116,35 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     ClockSkew = TimeSpan.Zero
 };
 
+options.Events = new JwtBearerEvents
+{
+    OnTokenValidated = async context =>
+    {
+        var db = context.HttpContext.RequestServices
+            .GetRequiredService<AppDbContext>();
+
+        var userIdClaim = context.Principal?
+            .FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            context.Fail("Token inválido.");
+            return;
+        }
+
+        var usuarioAtivo = await db.Academicos
+            .AnyAsync(a =>
+                a.Id == userId &&
+                a.Ativo
+            );
+
+        if (!usuarioAtivo)
+        {
+            context.Fail("Usuário desativado.");
+        }
+    }
+};
+
        options.Events = new JwtBearerEvents
        {
            OnMessageReceived = context =>
