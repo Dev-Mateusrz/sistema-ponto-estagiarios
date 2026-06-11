@@ -1,5 +1,13 @@
 import { apiFetch } from "../lib/api";
 
+export async function buscarRegistros() {
+  const response = await apiFetch("/registros-ponto");
+
+  const resultado = await response.json();
+
+  return resultado.data;
+}
+
 export async function registrarEntrada() {
   const response = await apiFetch(
     "/registros-ponto/entrada",
@@ -8,5 +16,16 @@ export async function registrarEntrada() {
     }
   );
 
-  return response.json();
+  return response;
+}
+
+export async function registrarSaida() {
+  const response = await apiFetch(
+    "/registros-ponto/saida",
+    {
+      method: "POST",
+    }
+  );
+
+  return response;
 }
