@@ -1,6 +1,8 @@
+import { useAuth } from "../hooks/useAuth";
 import { Navigate } from "react-router-dom";
 
 type ProtectedRouteProps = {
+  
   children: React.ReactNode;
 
   adminOnly?: boolean;
@@ -15,16 +17,14 @@ function ProtectedRoute({
 
   alunoOnly = false,
 }: ProtectedRouteProps) {
-  const token = localStorage.getItem("token");
+  const {
+  usuario,
+  estaAutenticado,
+} = useAuth();
 
-  const usuarioString =
-    localStorage.getItem("usuario");
-
-  if (!token || !usuarioString) {
-    return <Navigate to="/" replace />;
-  }
-
-  const usuario = JSON.parse(usuarioString);
+if (!estaAutenticado || !usuario) {
+  return <Navigate to="/" replace />;
+}
 
   if (adminOnly && !usuario.ehAdmin) {
     return <Navigate to="/" replace />;

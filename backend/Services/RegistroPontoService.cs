@@ -132,16 +132,17 @@ public async Task<
         return false;
     }
 
-    var hoje = DateTime.Today;
+var inicioHoje = DateTime.UtcNow.Date;
+var inicioAmanha = inicioHoje.AddDays(1);
 
-    var quantidadeRegistrosHoje =
-        await _context.RegistrosPonto
-            .CountAsync(r =>
-                r.AcademicoId ==
-                    academicoId &&
-                r.HoraEntrada.HasValue &&
-r.HoraEntrada.Value.Date == hoje
-            );
+var quantidadeRegistrosHoje =
+    await _context.RegistrosPonto
+        .CountAsync(r =>
+            r.AcademicoId == academicoId &&
+            r.HoraEntrada.HasValue &&
+            r.HoraEntrada >= inicioHoje &&
+            r.HoraEntrada < inicioAmanha
+        );
 
     if (quantidadeRegistrosHoje >= 2)
     {
@@ -165,7 +166,7 @@ r.HoraEntrada.Value.Date == hoje
     {
         AcademicoId = academicoId,
 
-        HoraEntrada = DateTime.Now
+        HoraEntrada = DateTime.UtcNow
     };
 
     _context.RegistrosPonto.Add(registro);
@@ -197,7 +198,7 @@ public async Task<bool>
         return false;
     }
 
-    registro.HoraSaida = DateTime.Now;
+    registro.HoraSaida = DateTime.UtcNow;
 
     if (
         registro.HoraEntrada.HasValue &&
