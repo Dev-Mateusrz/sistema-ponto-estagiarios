@@ -132,7 +132,7 @@ public async Task<
         return false;
     }
 
-    var hoje = DateTime.Today;
+    var hoje = DateTime.UtcNow.Date;
 
     var quantidadeRegistrosHoje =
         await _context.RegistrosPonto
@@ -165,7 +165,7 @@ r.HoraEntrada.Value.Date == hoje
     {
         AcademicoId = academicoId,
 
-        HoraEntrada = DateTime.Now
+        HoraEntrada = DateTime.UtcNow
     };
 
     _context.RegistrosPonto.Add(registro);
@@ -197,7 +197,7 @@ public async Task<bool>
         return false;
     }
 
-    registro.HoraSaida = DateTime.Now;
+    registro.HoraSaida = DateTime.UtcNow;
 
     if (
         registro.HoraEntrada.HasValue &&
