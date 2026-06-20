@@ -20,7 +20,12 @@ function ProtectedRoute({
   const {
   usuario,
   estaAutenticado,
+  carregando,
 } = useAuth();
+
+if (carregando) {
+  return null;
+}
 
 if (!estaAutenticado || !usuario) {
   return <Navigate to="/" replace />;

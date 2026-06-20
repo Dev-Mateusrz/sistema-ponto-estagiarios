@@ -11,6 +11,8 @@ type AuthContextType = {
 
   estaAutenticado: boolean;
 
+  carregando: boolean;
+
   login: (usuario: Usuario) => void;
 
   logout: () => void;
@@ -31,6 +33,9 @@ export function AuthProvider({
   const [usuario, setUsuario] =
     useState<Usuario | null>(null);
 
+  const [carregando, setCarregando] =
+    useState(true);
+
   useEffect(() => {
     const usuarioStorage =
       localStorage.getItem("usuario");
@@ -38,6 +43,8 @@ export function AuthProvider({
     if (usuarioStorage) {
       setUsuario(JSON.parse(usuarioStorage));
     }
+
+    setCarregando(false);
   }, []);
 
   function login(usuarioData: Usuario) {
@@ -68,6 +75,8 @@ export function AuthProvider({
         usuario,
 
         estaAutenticado: !!usuario,
+
+        carregando,
 
         login,
 

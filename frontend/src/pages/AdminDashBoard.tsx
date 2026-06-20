@@ -71,7 +71,7 @@ function AdminDashboard() {
       headers: obterHeadersAutenticados(),
     })
       .then((res) => res.json())
-      .then((dados) => setAcademicos(dados));
+      .then((dados) => setAcademicos(dados.data ?? dados));
   }
 
   function carregarRegistros() {
@@ -79,7 +79,7 @@ function AdminDashboard() {
       headers: obterHeadersAutenticados(),
     })
       .then((res) => res.json())
-      .then((dados) => setRegistros(dados));
+      .then((dados) => setRegistros(dados.data ?? dados));
   }
 
   useEffect(() => {
@@ -207,7 +207,7 @@ function AdminDashboard() {
         const dataRegistro = new Date(registro.entrada).toDateString();
 
         return (
-          registro.nomeAcademico === academico.email &&
+          registro.nomeAcademico === academico.nome &&
           dataRegistro === hoje
         );
       })
