@@ -29,8 +29,8 @@ public static class SeedData
             EhAdmin = true,
             Ativo = true,
             PrecisaDefinirSenha = false,
-            HorarioEntrada = "",
-            HorarioSaida = ""
+            HorarioEntrada = null,
+            HorarioSaida = null
         };
 
         admin.Senha = passwordHasher.HashPassword(admin, "Admin@123");

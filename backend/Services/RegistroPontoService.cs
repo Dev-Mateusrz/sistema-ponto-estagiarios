@@ -92,7 +92,9 @@ public async Task<
                         r.HoraSaida,
 
                     TotalHoras =
-                        r.TotalTrabalhado
+                        r.HoraEntrada.HasValue && r.HoraSaida.HasValue
+                            ? r.HoraSaida.Value - r.HoraEntrada.Value
+                            : null
                 }
             )
 
@@ -199,16 +201,6 @@ public async Task<bool>
     }
 
     registro.HoraSaida = DateTime.UtcNow;
-
-    if (
-        registro.HoraEntrada.HasValue &&
-        registro.HoraSaida.HasValue
-    )
-    {
-        registro.TotalTrabalhado =
-            registro.HoraSaida.Value -
-            registro.HoraEntrada.Value;
-    }
 
     await _context.SaveChangesAsync();
 
